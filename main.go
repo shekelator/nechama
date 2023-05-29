@@ -1,42 +1,42 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"log"
-	"net/http"
-	"strings"
 	"time"
 
+	"github.com/shekelator/nechama/internal/sefariawrap"
+
 	"github.com/hebcal/hdate"
+	"github.com/spf13/cobra"
 )
 
-type nestedArray [][]string
-
-type Response struct {
-	Hebrew  nestedArray `json:"he"`
-	English nestedArray `json:"text"`
-}
-
-type Text struct {
-	Hebrew    string
-	English   string
-	Reference string
-}
-
 func main() {
+	// root.Execute()
+
 	bmDate := getAriBarMitzvahDate()
 
 	fmt.Println(bmDate)
 
-	text, err := getSefariaData("Exodus 6:29-7:7")
+	text, err := sefariawrap.GetSefariaData("Deuteronomy 3")
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	fmt.Println(text)
+	hebText := text.Hebrew
+	// for i, c := range hebText {
+	// 	if i > 2500 {
+	// 		break
+	// 	}
+	// 	s := string(c)
+	// 	r, size := utf8.DecodeRuneInString(s)
+	// 	if slices.Contains([]int{0x202A, 0x202B, 0x202C, 0x202D, 0x05D3}, int(r)) {
+	// 		fmt.Printf("%d (%X) -> %v\n", r, r, size)
+	// 	}
+
+	// }
+
+	fmt.Println(hebText)
 }
 
 func getAriBarMitzvahDate() string {
@@ -50,37 +50,11 @@ func getAriBarMitzvahDate() string {
 	return fmt.Sprintf("%s - %s\n", barMitzvah, barMitzvah.Gregorian())
 }
 
-func getSefariaData(ref string) (string, error) {
-	resp, err := http.Get("https://www.sefaria.org/api/texts/Exodus 6:29-7:7/en/Tanakh: The Holy Scriptures, published by JPS")
-	if err != nil {
-		log.Fatal(err)
-		return "", err
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatal(err)
-		return "", err
-	}
-
-	var responseData Response
-	response := json.Unmarshal(body, &responseData)
-	if response != nil {
-		return "", response
-	}
-	// fmt.Println(responseData)
-	result := flatten(responseData.English)
-
-	return result, nil
-}
-
-func flatten(incoming nestedArray) string {
-	var sb strings.Builder
-
-	for _, arr := range incoming {
-		for _, str := range arr {
-			sb.WriteString(str)
-		}
-	}
-	return sb.String()
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "Print the version number",
+	Long:  `All software has versions.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("0.1")
+	},
 }
