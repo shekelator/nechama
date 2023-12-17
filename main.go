@@ -17,7 +17,7 @@ func main() {
 
 	fmt.Println(bmDate)
 
-	text, err := sefariawrap.GetSefariaData("Deuteronomy 3")
+	text, err := sefariawrap.GetSefariaData("Deuteronomy 3:1-4")
 	if err != nil {
 		fmt.Println(err)
 		return
