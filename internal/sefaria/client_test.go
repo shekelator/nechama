@@ -32,7 +32,7 @@ func TestClientFetchSourceText(t *testing.T) {
 					"actualLanguage":     "he",
 					"direction":          "rtl",
 					"isSource":           true,
-					"text":               "בְּרֵאשִׁית",
+					"text":               "בְּ֑רֵֽאשִׁית&nbsp;&thinsp;׃",
 				},
 			},
 		})
@@ -45,7 +45,7 @@ func TestClientFetchSourceText(t *testing.T) {
 		t.Fatalf("FetchText() error = %v", err)
 	}
 
-	if got, want := text.Text, "בְּרֵאשִׁית"; got != want {
+	if got, want := text.Text, "בְּרֵֽאשִׁית\u00A0\u2009׃"; got != want {
 		t.Fatalf("unexpected text: got %q want %q", got, want)
 	}
 	if !text.IsSource {
@@ -68,7 +68,7 @@ func TestClientFetchSpecificEnglishTranslation(t *testing.T) {
 					"actualLanguage":     "en",
 					"direction":          "ltr",
 					"isSource":           false,
-					"text":               "When God began to create heaven and earth—",
+					"text":               "When God began&nbsp;to create heaven and earth&mdash;",
 				},
 			},
 		})
@@ -87,6 +87,9 @@ func TestClientFetchSpecificEnglishTranslation(t *testing.T) {
 
 	if got, want := text.ShortVersionTitle, "Revised JPS, 2023"; got != want {
 		t.Fatalf("unexpected short title: got %q want %q", got, want)
+	}
+	if got, want := text.Text, "When God began\u00A0to create heaven and earth—"; got != want {
+		t.Fatalf("unexpected text: got %q want %q", got, want)
 	}
 }
 
@@ -123,6 +126,15 @@ func TestClientFormatsNestedTextWithNullEntries(t *testing.T) {
 
 	if got, want := text, "First comment\nSecond comment\n\nThird comment"; got != want {
 		t.Fatalf("unexpected flattened text: got %q want %q", got, want)
+	}
+}
+
+func TestStripCantillationPreservesNekudotMetegAndSofPasuq(t *testing.T) {
+	t.Parallel()
+
+	input := "בְ֑רָֽא׃"
+	if got, want := stripCantillation(input), "בְרָֽא׃"; got != want {
+		t.Fatalf("unexpected normalized Hebrew: got %q want %q", got, want)
 	}
 }
 

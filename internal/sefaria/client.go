@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"net/url"
@@ -12,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 const defaultBaseURL = "https://www.sefaria.org"
@@ -136,6 +138,7 @@ func (c *Client) FetchText(ctx context.Context, req FetchRequest) (Text, error) 
 	if err != nil {
 		return Text{}, err
 	}
+	text = normalizeText(text, version)
 
 	return Text{
 		Ref:               payload.Ref,
@@ -260,6 +263,37 @@ func formatTextValue(raw json.RawMessage) (string, error) {
 	}
 
 	return formatted.text, nil
+}
+
+func normalizeText(text string, version responseVersion) string {
+	text = html.UnescapeString(text)
+	if version.IsSource && version.LanguageFamilyName == "hebrew" {
+		return stripCantillation(text)
+	}
+
+	return text
+}
+
+func stripCantillation(text string) string {
+	var builder strings.Builder
+	builder.Grow(len(text))
+
+	for _, r := range text {
+		if shouldDropHebrewMark(r) {
+			continue
+		}
+		builder.WriteRune(r)
+	}
+
+	return builder.String()
+}
+
+func shouldDropHebrewMark(r rune) bool {
+	if r == '\u05BD' || r == '\u05C3' {
+		return false
+	}
+
+	return unicode.In(r, unicode.Hebrew) && r >= '\u0591' && r <= '\u05AF'
 }
 
 type flattenedText struct {
