@@ -1,0 +1,38 @@
+version: 2
+
+project_name: nechama
+
+builds:
+  - id: nechama
+    main: .
+    binary: nechama
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/shekelator/nechama/cmd.Version={{.Version}}
+
+archives:
+  - id: default
+    builds:
+      - nechama
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{- if eq .Os "darwin" }}macOS{{ else }}{{ .Os }}{{ end }}_{{ .Arch }}
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+
+release:
+  prerelease: auto
