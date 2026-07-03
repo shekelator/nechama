@@ -9,11 +9,16 @@ import (
 	"testing"
 
 	"github.com/shekelator/nechama/internal/sefaria"
+	"github.com/shekelator/nechama/internal/transliteration"
 )
 
 type stubTextService struct {
 	fetch func(context.Context, sefaria.FetchRequest) (sefaria.Text, error)
 	list  func(context.Context, string) ([]sefaria.VersionChoice, error)
+}
+
+type stubTransliterator struct {
+	transliterate func(context.Context, string) (string, error)
 }
 
 func (s stubTextService) FetchText(ctx context.Context, req sefaria.FetchRequest) (sefaria.Text, error) {
@@ -22,6 +27,10 @@ func (s stubTextService) FetchText(ctx context.Context, req sefaria.FetchRequest
 
 func (s stubTextService) ListEnglishVersions(ctx context.Context, ref string) ([]sefaria.VersionChoice, error) {
 	return s.list(ctx, ref)
+}
+
+func (s stubTransliterator) Transliterate(ctx context.Context, req transliteration.Request) (string, error) {
+	return s.transliterate(ctx, req.Text)
 }
 
 func TestRootCommandFetchesSourceTextByDefault(t *testing.T) {
@@ -217,5 +226,99 @@ func TestFetchCommandWritesToFile(t *testing.T) {
 
 	if got := string(contents); got != "When God began\n" {
 		t.Fatalf("unexpected file contents: %q", got)
+	}
+}
+
+func TestFetchCommandTransliteratesSourceText(t *testing.T) {
+	t.Parallel()
+
+	stdout := &bytes.Buffer{}
+
+	cmd := newRootCommand(commandDependencies{
+		service: stubTextService{
+			fetch: func(_ context.Context, req sefaria.FetchRequest) (sefaria.Text, error) {
+				if req.Language != sefaria.LanguageSource {
+					t.Fatalf("expected source request, got %q", req.Language)
+				}
+				return sefaria.Text{
+					Text:           "מִזְמ֥וֹר",
+					LanguageFamily: "hebrew",
+					ActualLanguage: "he",
+					IsSource:       true,
+				}, nil
+			},
+			list: func(context.Context, string) ([]sefaria.VersionChoice, error) {
+				t.Fatal("list should not be called")
+				return nil, nil
+			},
+		},
+		newTransliterator: func() (transliterator, error) {
+			return stubTransliterator{
+				transliterate: func(_ context.Context, text string) (string, error) {
+					if text != "מִזְמ֥וֹר" {
+						t.Fatalf("unexpected text: %q", text)
+					}
+					return "mizmor", nil
+				},
+			}, nil
+		},
+		stdin:  strings.NewReader(""),
+		stdout: stdout,
+		stderr: &bytes.Buffer{},
+		isTTY:  func() bool { return false },
+	})
+
+	cmd.SetArgs([]string{"fetch", "--transliteration", "Psalm 132:1"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if got := stdout.String(); got != "mizmor\n" {
+		t.Fatalf("unexpected stdout: %q", got)
+	}
+}
+
+func TestFetchCommandRejectsTransliterationWithEnglishFlags(t *testing.T) {
+	t.Parallel()
+
+	cmd := newRootCommand(commandDependencies{
+		service: stubTextService{
+			list:  func(context.Context, string) ([]sefaria.VersionChoice, error) { return nil, nil },
+			fetch: func(context.Context, sefaria.FetchRequest) (sefaria.Text, error) { return sefaria.Text{}, nil },
+		},
+		stdin:  strings.NewReader(""),
+		stdout: &bytes.Buffer{},
+		stderr: &bytes.Buffer{},
+		isTTY:  func() bool { return false },
+	})
+
+	cmd.SetArgs([]string{"fetch", "--transliteration", "--english", "Genesis 1:1"})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "can only be used with source text") {
+		t.Fatalf("expected transliteration conflict error, got %v", err)
+	}
+}
+
+func TestFetchCommandFailsWhenTransliterationIsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	cmd := newRootCommand(commandDependencies{
+		service: stubTextService{
+			fetch: func(context.Context, sefaria.FetchRequest) (sefaria.Text, error) {
+				return sefaria.Text{Text: "דָּבָר", LanguageFamily: "hebrew", ActualLanguage: "he", IsSource: true}, nil
+			},
+			list: func(context.Context, string) ([]sefaria.VersionChoice, error) { return nil, nil },
+		},
+		newTransliterator: nil,
+		stdin:             strings.NewReader(""),
+		stdout:            &bytes.Buffer{},
+		stderr:            &bytes.Buffer{},
+		isTTY:             func() bool { return false },
+	})
+
+	cmd.SetArgs([]string{"fetch", "--transliteration", "Genesis 1:1"})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "not configured") {
+		t.Fatalf("expected transliteration unavailable error, got %v", err)
 	}
 }

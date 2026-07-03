@@ -12,6 +12,7 @@ It defaults to the source language of the work, which means Hebrew for Tanakh an
 - supports the highest-priority English translation with `--english`
 - supports a specific English translation with `--translation`
 - supports interactive translation selection with `--choose-translation`
+- supports transliteration of source Hebrew/Aramaic text with `--transliteration`
 - uses deterministic, network-free tests for the CLI and Sefaria client logic
 
 ## Requirements
@@ -65,6 +66,19 @@ nechama fetch --choose-translation "Genesis 1:1"
 nechama -o genesis.txt "Genesis 1"
 ```
 
+### Transliterate source Hebrew/Aramaic text
+
+Make sure an Ollama model is running locally first:
+```bash
+ollama run gemma4:e4b
+```
+
+```bash
+nechama --transliteration "Psalm 132"
+```
+
+`--transliteration` only works with source-language fetches. It cannot be combined with `--english`, `--translation`, or `--choose-translation`.
+
 ## Command reference
 
 ```text
@@ -80,6 +94,7 @@ nechama version
 | `-e`, `--english` | Fetch the highest-priority English translation |
 | `-t`, `--translation <name>` | Fetch a specific English translation by short or full title |
 | `--choose-translation` | Prompt for an English translation in an interactive terminal |
+| `--transliteration` | Transliterate source Hebrew/Aramaic text into Latin letters |
 | `-o`, `--output <path>` | Write the fetched text to a file instead of stdout |
 
 ## How text selection works
@@ -93,6 +108,80 @@ By default, `nechama` asks Sefaria for the `source` version of the requested ref
 - `--english` fetches Sefaria's highest-priority English translation.
 - `--translation` resolves a specific English version title before fetching the text.
 - `--choose-translation` lists the English versions available for that ref and prompts you to choose one.
+
+### Transliteration behavior
+
+- `--transliteration` transliterates source Hebrew/Aramaic text and outputs transliteration only.
+- Transliteration errors fail the command.
+- The transliteration rules are built into source at `internal/transliteration/rules.go`.
+
+## Transliteration configuration
+
+Transliteration provider configuration is read from JSON:
+
+- `NECHAMA_CONFIG` if set
+- otherwise `$XDG_CONFIG_HOME/nechama/config.json` (or the OS-equivalent user config directory)
+
+Example config:
+
+```json
+{
+	"transliteration": {
+		"provider": "ollama",
+		"ollama": {
+			"base_url": "http://host.docker.internal:11434",
+			"model": "gemma4:e4b",
+			"api_key": "dummy-api-key",
+			"timeout_seconds": 60
+		}
+	}
+}
+```
+
+Environment variable overrides (take precedence over config file):
+
+- `NECHAMA_TRANSLITERATION_PROVIDER`
+- `NECHAMA_TRANSLITERATION_BASE_URL`
+- `NECHAMA_TRANSLITERATION_MODEL`
+- `NECHAMA_TRANSLITERATION_API_KEY`
+- `NECHAMA_TRANSLITERATION_TIMEOUT_SECONDS`
+
+### Defaults and precedence
+
+- The app loads defaults from code first.
+- Then it reads config from `NECHAMA_CONFIG` (if set) or the default user config path.
+- Then environment variables override config values.
+
+Current in-code defaults are:
+
+- provider: `ollama`
+- base_url: `http://host.docker.internal:11434`
+- model: `gemma4:e4b`
+- api_key: `dummy-api-key`
+- timeout_seconds: `60`
+
+The Ollama HTTP client sends `Authorization: Bearer <api_key>` when `api_key` is non-empty. This supports Ollama Cloud and other API-key-based gateways.
+
+### Devcontainer note
+
+In a devcontainer, `127.0.0.1` points to the container itself, not your host machine. If Ollama is running on your host, set `base_url` to `http://host.docker.internal:11434` (or set `NECHAMA_TRANSLITERATION_BASE_URL` to that value).
+
+### Environment-only example
+
+```bash
+NECHAMA_TRANSLITERATION_PROVIDER=ollama \
+NECHAMA_TRANSLITERATION_BASE_URL=http://host.docker.internal:11434 \
+NECHAMA_TRANSLITERATION_MODEL=gemma4:e4b \
+NECHAMA_TRANSLITERATION_API_KEY=dummy-api-key \
+NECHAMA_TRANSLITERATION_TIMEOUT_SECONDS=60 \
+go run . "Psalm 27" --transliteration
+```
+
+Currently implemented provider:
+
+- `ollama`
+
+The transliteration module already uses a provider factory pattern in `internal/transliteration/factory.go`, so additional providers can be added without changing command flow.
 
 ## Development overview
 
