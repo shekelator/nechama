@@ -31,6 +31,18 @@ Or run it directly:
 go run . "Genesis 1:1"
 ```
 
+## Install from GitHub Releases
+
+Prebuilt binaries are published on the [GitHub Releases page](https://github.com/shekelator/nechama/releases).
+
+Each release includes archives for:
+
+- macOS (`amd64`, `arm64`)
+- Linux (`amd64`, `arm64`)
+- Windows (`amd64`, `arm64`)
+
+Download the archive for your platform, extract it, and place the `nechama` binary in your `PATH`.
+
 ## Usage
 
 ### Fetch the source-language text
@@ -208,6 +220,25 @@ The tests cover:
 - text flattening for strings, sections, and nested commentary responses
 - Sefaria request/query construction
 - error handling for unresolved refs and missing translations
+
+## Releasing
+
+Releases are automated with GitHub Actions + GoReleaser.
+
+1. Create and push a semantic version tag from `main`:
+
+   ```bash
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+
+2. The `Release` workflow runs tests, builds cross-platform binaries, and publishes a GitHub Release with archives plus `checksums.txt`.
+
+For local verification of the release config without publishing:
+
+```bash
+go run github.com/goreleaser/goreleaser/v2@latest release --snapshot --clean --skip=publish
+```
 
 ## Sefaria references
 
