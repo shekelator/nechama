@@ -245,3 +245,6 @@ go run github.com/goreleaser/goreleaser/v2@latest release --snapshot --clean --s
 - API getting started: <https://developers.sefaria.org/reference/getting-started>
 - v3 texts API: <https://developers.sefaria.org/reference/get-v3-texts>
 - Sefaria MCP docs: <https://developers.sefaria.org/docs/the-sefaria-mcp>
+
+## TODOs
+- Incorporate [tanach.us](https://tanach.us) for better text reliability
