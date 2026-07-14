@@ -51,6 +51,13 @@ Download the archive for your platform, extract it, and place the `nechama` bina
 nechama "Genesis 1:1"
 ```
 
+You can also pipe the reference through stdin:
+
+```bash
+echo "Psalm 51:4" | nechama
+echo "Genesis 1:1" | nechama fetch --english
+```
+
 ### Fetch the highest-priority English translation
 
 ```bash
