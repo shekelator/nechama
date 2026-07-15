@@ -22,7 +22,7 @@ It defaults to the source language of the work, which means Hebrew for Tanakh an
 ## Build
 
 ```bash
-go build ./...
+go build -o nechama .
 ```
 
 Or run it directly:
