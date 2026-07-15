@@ -104,7 +104,7 @@ func newRootCommand(deps commandDependencies) *cobra.Command {
 	opts := fetchOptions{}
 
 	cmd := &cobra.Command{
-		Use:           "nechama <ref>",
+		Use:           "nechama [ref]",
 		Short:         "Fetch Jewish texts from Sefaria",
 		Long:          "Nechama fetches plain-text excerpts from Sefaria and prints them to stdout or saves them to a file.",
 		Example:       "  nechama \"Genesis 1:1\"\n  nechama --english \"Genesis 1:1\"\n  nechama --transliteration \"Psalm 132\"\n  nechama fetch --translation \"Revised JPS, 2023\" \"Genesis 1\"",
@@ -136,7 +136,7 @@ func newFetchCommand(deps commandDependencies) *cobra.Command {
 	opts := fetchOptions{}
 
 	cmd := &cobra.Command{
-		Use:           "fetch <ref>",
+		Use:           "fetch [ref]",
 		Short:         "Fetch a text from Sefaria",
 		Example:       "  nechama fetch \"Berakhot 2a:1\"\n  nechama fetch --english --choose-translation \"Genesis 1:1\"\n  nechama fetch --transliteration \"Psalm 132\"\n  nechama fetch -o genesis.txt \"Genesis 1\"",
 		Args:          cobra.MaximumNArgs(1),

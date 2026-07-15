@@ -101,8 +101,8 @@ nechama --transliteration "Psalm 132"
 ## Command reference
 
 ```text
-nechama [flags] <ref>
-nechama fetch [flags] <ref>
+nechama [flags] [ref]
+nechama fetch [flags] [ref]
 nechama version
 ```
 
