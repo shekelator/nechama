@@ -43,6 +43,7 @@ type commandDependencies struct {
 	stdout            io.Writer
 	stderr            io.Writer
 	isTTY             func() bool
+	isInputTTY        func() bool
 }
 
 func Execute() error {
@@ -89,6 +90,9 @@ func defaultDependencies() commandDependencies {
 		isTTY: func() bool {
 			return isTerminal(os.Stdin) && isTerminal(os.Stdout)
 		},
+		isInputTTY: func() bool {
+			return isTerminal(os.Stdin)
+		},
 	}
 }
 
@@ -100,7 +104,7 @@ func newRootCommand(deps commandDependencies) *cobra.Command {
 	opts := fetchOptions{}
 
 	cmd := &cobra.Command{
-		Use:           "nechama <ref>",
+		Use:           "nechama [ref]",
 		Short:         "Fetch Jewish texts from Sefaria",
 		Long:          "Nechama fetches plain-text excerpts from Sefaria and prints them to stdout or saves them to a file.",
 		Example:       "  nechama \"Genesis 1:1\"\n  nechama --english \"Genesis 1:1\"\n  nechama --transliteration \"Psalm 132\"\n  nechama fetch --translation \"Revised JPS, 2023\" \"Genesis 1\"",
@@ -108,11 +112,14 @@ func newRootCommand(deps commandDependencies) *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				return cmd.Help()
+			ref, err := resolveReference(args, deps)
+			if err != nil {
+				if len(args) == 0 && inputIsTTY(deps) {
+					return cmd.Help()
+				}
+				return err
 			}
-
-			return runFetch(cmd.Context(), deps, opts, args[0])
+			return runFetch(cmd.Context(), deps, opts, ref)
 		},
 	}
 
@@ -129,14 +136,21 @@ func newFetchCommand(deps commandDependencies) *cobra.Command {
 	opts := fetchOptions{}
 
 	cmd := &cobra.Command{
-		Use:           "fetch <ref>",
+		Use:           "fetch [ref]",
 		Short:         "Fetch a text from Sefaria",
 		Example:       "  nechama fetch \"Berakhot 2a:1\"\n  nechama fetch --english --choose-translation \"Genesis 1:1\"\n  nechama fetch --transliteration \"Psalm 132\"\n  nechama fetch -o genesis.txt \"Genesis 1\"",
-		Args:          cobra.ExactArgs(1),
+		Args:          cobra.MaximumNArgs(1),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runFetch(cmd.Context(), deps, opts, args[0])
+			ref, err := resolveReference(args, deps)
+			if err != nil {
+				if len(args) == 0 && inputIsTTY(deps) {
+					return cmd.Help()
+				}
+				return err
+			}
+			return runFetch(cmd.Context(), deps, opts, ref)
 		},
 	}
 
@@ -153,6 +167,33 @@ func bindFetchFlags(flags *pflag.FlagSet, opts *fetchOptions) {
 	flags.BoolVar(&opts.chooseTranslation, "choose-translation", false, "Interactively choose an English translation")
 	flags.BoolVar(&opts.transliteration, "transliteration", false, "Transliterate source Hebrew/Aramaic text into Latin letters")
 	flags.StringVarP(&opts.outputPath, "output", "o", "", "Write the fetched text to a file instead of stdout")
+}
+
+func resolveReference(args []string, deps commandDependencies) (string, error) {
+	if len(args) > 0 {
+		return args[0], nil
+	}
+	if inputIsTTY(deps) {
+		return "", errors.New("reference is required")
+	}
+
+	data, err := io.ReadAll(deps.stdin)
+	if err != nil {
+		return "", err
+	}
+
+	ref := strings.TrimSpace(string(data))
+	if ref == "" {
+		return "", errors.New("reference is required")
+	}
+	return ref, nil
+}
+
+func inputIsTTY(deps commandDependencies) bool {
+	if deps.isInputTTY == nil {
+		return false
+	}
+	return deps.isInputTTY()
 }
 
 func runFetch(ctx context.Context, deps commandDependencies, opts fetchOptions, ref string) error {

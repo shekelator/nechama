@@ -22,7 +22,7 @@ It defaults to the source language of the work, which means Hebrew for Tanakh an
 ## Build
 
 ```bash
-go build ./...
+go build -o nechama .
 ```
 
 Or run it directly:
@@ -49,6 +49,13 @@ Download the archive for your platform, extract it, and place the `nechama` bina
 
 ```bash
 nechama "Genesis 1:1"
+```
+
+You can also pipe the reference through stdin:
+
+```bash
+echo "Psalm 51:4" | nechama
+echo "Genesis 1:1" | nechama fetch --english
 ```
 
 ### Fetch the highest-priority English translation
@@ -94,8 +101,8 @@ nechama --transliteration "Psalm 132"
 ## Command reference
 
 ```text
-nechama [flags] <ref>
-nechama fetch [flags] <ref>
+nechama [flags] [ref]
+nechama fetch [flags] [ref]
 nechama version
 ```
 

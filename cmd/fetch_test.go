@@ -70,6 +70,43 @@ func TestRootCommandFetchesSourceTextByDefault(t *testing.T) {
 	}
 }
 
+func TestRootCommandReadsReferenceFromStdinWhenNoArgument(t *testing.T) {
+	t.Parallel()
+
+	var captured sefaria.FetchRequest
+	stdout := &bytes.Buffer{}
+
+	cmd := newRootCommand(commandDependencies{
+		service: stubTextService{
+			fetch: func(_ context.Context, req sefaria.FetchRequest) (sefaria.Text, error) {
+				captured = req
+				return sefaria.Text{Text: "ok"}, nil
+			},
+			list: func(context.Context, string) ([]sefaria.VersionChoice, error) {
+				t.Fatal("list should not be called")
+				return nil, nil
+			},
+		},
+		stdin:      strings.NewReader("Psalm 51:4\n"),
+		stdout:     stdout,
+		stderr:     &bytes.Buffer{},
+		isTTY:      func() bool { return false },
+		isInputTTY: func() bool { return false },
+	})
+
+	cmd.SetArgs([]string{})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if captured.Ref != "Psalm 51:4" {
+		t.Fatalf("expected ref from stdin, got %q", captured.Ref)
+	}
+	if got := stdout.String(); got != "ok\n" {
+		t.Fatalf("unexpected stdout: %q", got)
+	}
+}
+
 func TestFetchCommandSelectsRequestedTranslation(t *testing.T) {
 	t.Parallel()
 
@@ -108,6 +145,43 @@ func TestFetchCommandSelectsRequestedTranslation(t *testing.T) {
 	}
 
 	if got := stdout.String(); got != "In the beginning\n" {
+		t.Fatalf("unexpected stdout: %q", got)
+	}
+}
+
+func TestFetchCommandReadsReferenceFromStdinWhenNoArgument(t *testing.T) {
+	t.Parallel()
+
+	var captured sefaria.FetchRequest
+	stdout := &bytes.Buffer{}
+
+	cmd := newRootCommand(commandDependencies{
+		service: stubTextService{
+			fetch: func(_ context.Context, req sefaria.FetchRequest) (sefaria.Text, error) {
+				captured = req
+				return sefaria.Text{Text: "ok"}, nil
+			},
+			list: func(context.Context, string) ([]sefaria.VersionChoice, error) {
+				t.Fatal("list should not be called")
+				return nil, nil
+			},
+		},
+		stdin:      strings.NewReader("Psalm 51:4"),
+		stdout:     stdout,
+		stderr:     &bytes.Buffer{},
+		isTTY:      func() bool { return false },
+		isInputTTY: func() bool { return false },
+	})
+
+	cmd.SetArgs([]string{"fetch"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if captured.Ref != "Psalm 51:4" {
+		t.Fatalf("expected ref from stdin, got %q", captured.Ref)
+	}
+	if got := stdout.String(); got != "ok\n" {
 		t.Fatalf("unexpected stdout: %q", got)
 	}
 }
