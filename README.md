@@ -13,6 +13,7 @@ It defaults to the source language of the work, which means Hebrew for Tanakh an
 - supports a specific English translation with `--translation`
 - supports interactive translation selection with `--choose-translation`
 - supports transliteration of source Hebrew/Aramaic text with `--transliteration`
+- transliterates arbitrary Hebrew text passed directly (argument or stdin) without a Sefaria lookup
 - uses deterministic, network-free tests for the CLI and Sefaria client logic
 
 ## Requirements
@@ -121,11 +122,22 @@ nechama --transliteration "Psalm 132"
 
 `--transliteration` only works with source-language fetches. It cannot be combined with `--english`, `--translation`, or `--choose-translation`.
 
+### Transliterate arbitrary Hebrew text directly
+
+If the input contains Hebrew script, `nechama` skips the Sefaria lookup and transliterates the text directly. No flag is needed — pass the text as an argument or pipe it via stdin:
+
+```bash
+nechama "שָׁלוֹם עָלֵיכֶם"
+echo "בְּרֵאשִׁית" | nechama
+```
+
+This uses the same transliteration provider/settings as `--transliteration` (see [Transliteration configuration](#transliteration-configuration)). It cannot be combined with `--english`, `--translation`, or `--choose-translation`. Non-Hebrew input is still treated as a Sefaria reference.
+
 ## Command reference
 
 ```text
-nechama [flags] [ref]
-nechama fetch [flags] [ref]
+nechama [flags] [ref|text]
+nechama fetch [flags] [ref|text]
 nechama version
 ```
 
@@ -154,6 +166,7 @@ By default, `nechama` asks Sefaria for the `source` version of the requested ref
 ### Transliteration behavior
 
 - `--transliteration` transliterates source Hebrew/Aramaic text and outputs transliteration only.
+- Input containing Hebrew script is transliterated directly without a Sefaria lookup.
 - Transliteration errors fail the command.
 - The transliteration rules are built into source at `internal/transliteration/rules.go`.
 

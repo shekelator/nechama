@@ -43,7 +43,7 @@ func Default() AppConfig {
 			Provider: "ollama",
 			Ollama: OllamaConfig{
 				BaseURL:        "http://host.docker.internal:11434",
-				Model:          "gemma4:e4b",
+				Model:          "gemma4:cloud",
 				APIKey:         "dummy-api-key",
 				TimeoutSeconds: 60,
 			},

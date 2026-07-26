@@ -63,9 +63,34 @@ Transliterate pointed Hebrew text (with nikud) into English characters following
 5. **End-of-word ה**: Silent — do not transliterate. e.g. שָׂדֶה → sade.
 6. **Diacritics**: Do not use any diacritics or special characters. Use only standard ASCII letters.
 7. **Word spacing**: Preserve word boundaries. Use a hyphen only for the definite article and inseparable prepositions (בְּ, לְ, כְּ, וְ → be-, le-, ke-, ve-).
+8. **Kamatz Katan**: Default to "a" when uncertain, but recognize that it may sound like "o" in some contexts.
+9. When encountering the Divine Name (י-ה-ו-ה or one of the abbreviations or euphamisms such as יי, or the Tetragrammaton represented by the letter ה alone), transliterate as "ADONAI".
+10. Capitalize the first letter of each line or verse.
+11. While often a beit (ב), peh (פ) or kaf (כ) at the beginning of the word is transliterated with a hard consonant, there are times, particularly if the previous word ends with a vowel, when it may be softened to a "v" sound. Always follow the pointing/nekudot carefully (in this case the presence or absence of the dagesh is key).
 
+**Examples** — apply the rules exactly as shown:
+
+|Hebrew|Output|Rule demonstrated|
+|---|---|---|
+|שְׁמַע|shema|leading shva → e; shin dot → sh|
+|מִדְבָּר|midbar|silent shva closes a syllable (no vowel inserted)|
+|שַׁבָּת|shabat|dagesh chazak → single consonant (no doubling)|
+|הַבַּיִת|ha-bayit|definite article הַ → ha- with hyphen|
+|שָׂדֶה|sade|silent final ה; sin dot → s|
+|טוֹב|tov|cholam male (vav + ֹ) → o; bet without dagesh → v|
+|אֹמֶר|omer|bare cholam (ֹ on a consonant, no vav) → o; segol → e|
+|קֹדֶשׁ|kodesh|bare cholam → o; shin dot → sh|
+|עֵץ|ets|tsere → e; silent ayin; final tsadi → ts|
+|בְּיוֹם|be-yom|inseparable preposition בְּ → be- with hyphen; cholam → o|
+|וְאָהַבְתָּ|ve-ahavta|vav shva → ve-; silent shva in בְ; kamatz → a|
+|בָּשָׂר|basar|word-initial beit WITH dagesh → b (hard)|
+|בָא|va|word-initial beit WITHOUT dagesh → v (soft)|
+|אָבִיב|aviv|beit without dagesh after a vowel → v|
+|כָּבוֹד|kavod|word-initial kaf WITH dagesh → k (hard)|
+|כִי|chi|word-initial kaf WITHOUT dagesh → ch (soft)|
+|אַךְ|ach|final kaf without dagesh → ch|
+|יְהוָה|ADONAI|Divine Name → ADONAI|
+
+Always use the rules above consistently when transliterating Hebrew text into English characters.
 ---
-
-This should give a model enough to be consistent. The main ambiguity you may still encounter is **kamatz katan** (which sounds like "o" not "a") — that's genuinely hard to resolve without grammatical parsing, so you may want to instruct the model to default to "a" and flag uncertain cases if precision matters.
-
 `

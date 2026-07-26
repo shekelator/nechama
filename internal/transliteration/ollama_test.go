@@ -31,6 +31,14 @@ func TestOllamaClientGenerate(t *testing.T) {
 			t.Fatalf("unexpected model: %v", payload["model"])
 		}
 
+		options, ok := payload["options"].(map[string]any)
+		if !ok {
+			t.Fatalf("expected options object in request, got %v", payload["options"])
+		}
+		if temperature, _ := options["temperature"].(float64); temperature != 0 {
+			t.Fatalf("expected temperature 0 for deterministic output, got %v", options["temperature"])
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"message":{"role":"assistant","content":"shalom"}}`))
 	}))

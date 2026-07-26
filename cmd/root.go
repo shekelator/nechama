@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"unicode"
 
 	"github.com/shekelator/nechama/internal/config"
 	"github.com/shekelator/nechama/internal/sefaria"
@@ -176,7 +177,7 @@ func resolveReference(args []string, deps commandDependencies) (string, error) {
 		return args[0], nil
 	}
 	if inputIsTTY(deps) {
-		return "", errors.New("reference is required")
+		return "", errors.New("reference or text is required")
 	}
 
 	data, err := io.ReadAll(deps.stdin)
@@ -186,7 +187,7 @@ func resolveReference(args []string, deps commandDependencies) (string, error) {
 
 	ref := strings.TrimSpace(string(data))
 	if ref == "" {
-		return "", errors.New("reference is required")
+		return "", errors.New("reference or text is required")
 	}
 	return ref, nil
 }
@@ -204,6 +205,12 @@ func runFetch(ctx context.Context, deps commandDependencies, opts fetchOptions, 
 	}
 	if opts.transliteration && (opts.english || opts.translation != "" || opts.chooseTranslation) {
 		return errors.New("--transliteration can only be used with source text (not --english, --translation, or --choose-translation)")
+	}
+
+	// Input that contains Hebrew script is treated as raw text to transliterate
+	// directly, bypassing the Sefaria lookup entirely.
+	if containsHebrewScript(ref) {
+		return runTransliterateText(ctx, deps, opts, ref)
 	}
 
 	request := sefaria.FetchRequest{Ref: ref, Language: sefaria.LanguageSource}
@@ -286,12 +293,70 @@ func runFetch(ctx context.Context, deps commandDependencies, opts fetchOptions, 
 	}
 
 	content := ensureTrailingNewline(result.Text)
+	return writeOutput(deps, opts, content)
+}
+
+// runTransliterateText transliterates raw Hebrew/Aramaic text supplied directly
+// (as an argument or via stdin) instead of looking it up on Sefaria. It reuses
+// the same transliteration provider configuration as source-text transliteration.
+func runTransliterateText(ctx context.Context, deps commandDependencies, opts fetchOptions, text string) error {
+	if opts.english || opts.translation != "" || opts.chooseTranslation {
+		return errors.New("Hebrew text input cannot be combined with --english, --translation, or --choose-translation")
+	}
+	if deps.newTransliterator == nil {
+		return errors.New("transliteration service is not configured")
+	}
+
+	fmt.Fprintf(deps.stderr, "%s (transliterate)\n", previewText(text, 40))
+
+	service, err := deps.newTransliterator()
+	if err != nil {
+		return err
+	}
+
+	transliterated, err := service.Transliterate(ctx, transliteration.Request{
+		Text:           text,
+		LanguageFamily: "hebrew",
+		ActualLanguage: "he",
+	})
+	if err != nil {
+		return err
+	}
+
+	return writeOutput(deps, opts, ensureTrailingNewline(transliterated))
+}
+
+func writeOutput(deps commandDependencies, opts fetchOptions, content string) error {
 	if opts.outputPath != "" {
 		return os.WriteFile(opts.outputPath, []byte(content), 0o644)
 	}
-
-	_, err = io.WriteString(deps.stdout, content)
+	_, err := io.WriteString(deps.stdout, content)
 	return err
+}
+
+// containsHebrewScript reports whether s contains any character in the
+// Unicode Hebrew script. Such input is treated as raw text to transliterate
+// rather than as a Sefaria reference.
+func containsHebrewScript(s string) bool {
+	for _, r := range s {
+		if unicode.Is(unicode.Hebrew, r) {
+			return true
+		}
+	}
+	return false
+}
+
+// previewText returns a single-line preview of text truncated to max runes,
+// suitable for a stderr status line.
+func previewText(text string, max int) string {
+	preview := strings.TrimSpace(text)
+	if idx := strings.IndexAny(preview, "\n\r"); idx >= 0 {
+		preview = preview[:idx]
+	}
+	if max > 0 && len([]rune(preview)) > max {
+		preview = string([]rune(preview)[:max]) + "…"
+	}
+	return preview
 }
 
 func ensureTrailingNewline(text string) string {
