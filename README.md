@@ -73,6 +73,19 @@ nechama --translation "Revised JPS, 2023" "Genesis 1:1"
 nechama fetch --translation "THE JPS TANAKH: Gender-Sensitive Edition" "Genesis 1:1"
 ```
 
+### Set a default English translation
+
+Set `NECHAMA_DEFAULT_ENGLISH_TRANSLATION` to a short or full version title. When `--english` is passed, nechama resolves that translation by name instead of using Sefaria's highest-priority English translation.
+
+```bash
+export NECHAMA_DEFAULT_ENGLISH_TRANSLATION="Revised JPS, 2023"
+nechama --english "Genesis 1:1"
+```
+
+The env var only takes effect with `--english`. It does not change plain `nechama "Genesis 1:1"`, which still fetches the source text. `--translation` and `--choose-translation` always override it.
+
+If the configured translation is not available for the requested ref (for example, the ref has no matching English version), nechama falls back to the highest-priority English translation and prints a note to stderr.
+
 ### Choose a translation interactively
 
 ```bash
@@ -84,6 +97,16 @@ nechama fetch --choose-translation "Genesis 1:1"
 ```bash
 nechama -o genesis.txt "Genesis 1"
 ```
+
+### Text details go to stderr
+
+For every fetch, nechama prints a short details line to stderr — for example `Genesis 1:1 (source)` or `Genesis 1:1 (English, Revised JPS, 2023)` — so you can pipe the text itself to another tool without the metadata mixing in:
+
+```bash
+nechama --english "Genesis 1:1" | pbcopy
+```
+
+stdout gets just the text; stderr gets the details line (and any fallback notes).
 
 ### Transliterate source Hebrew/Aramaic text
 
@@ -124,7 +147,7 @@ By default, `nechama` asks Sefaria for the `source` version of the requested ref
 
 ### English behavior
 
-- `--english` fetches Sefaria's highest-priority English translation.
+- `--english` fetches Sefaria's highest-priority English translation, or the translation named by `NECHAMA_DEFAULT_ENGLISH_TRANSLATION` if set and available for the ref.
 - `--translation` resolves a specific English version title before fetching the text.
 - `--choose-translation` lists the English versions available for that ref and prompts you to choose one.
 

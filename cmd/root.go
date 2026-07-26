@@ -37,13 +37,14 @@ type transliterator interface {
 }
 
 type commandDependencies struct {
-	service           textService
-	newTransliterator func() (transliterator, error)
-	stdin             io.Reader
-	stdout            io.Writer
-	stderr            io.Writer
-	isTTY             func() bool
-	isInputTTY        func() bool
+	service                   textService
+	newTransliterator         func() (transliterator, error)
+	stdin                     io.Reader
+	stdout                    io.Writer
+	stderr                    io.Writer
+	isTTY                     func() bool
+	isInputTTY                func() bool
+	defaultEnglishTranslation string
 }
 
 func Execute() error {
@@ -83,10 +84,11 @@ func defaultDependencies() commandDependencies {
 			sefaria.WithBaseURL(os.Getenv("NECHAMA_SEFARIA_BASE_URL")),
 			sefaria.WithUserAgent(fmt.Sprintf("nechama/%s", Version)),
 		),
-		newTransliterator: newTransliterator,
-		stdin:             os.Stdin,
-		stdout:            os.Stdout,
-		stderr:            os.Stderr,
+		newTransliterator:         newTransliterator,
+		stdin:                     os.Stdin,
+		stdout:                    os.Stdout,
+		stderr:                    os.Stderr,
+		defaultEnglishTranslation: os.Getenv("NECHAMA_DEFAULT_ENGLISH_TRANSLATION"),
 		isTTY: func() bool {
 			return isTerminal(os.Stdin) && isTerminal(os.Stdout)
 		},
@@ -210,7 +212,8 @@ func runFetch(ctx context.Context, deps commandDependencies, opts fetchOptions, 
 		request.Language = sefaria.LanguageEnglish
 	}
 
-	if opts.translation != "" {
+	switch {
+	case opts.translation != "":
 		versions, err := deps.service.ListEnglishVersions(ctx, ref)
 		if err != nil {
 			return err
@@ -222,9 +225,7 @@ func runFetch(ctx context.Context, deps commandDependencies, opts fetchOptions, 
 		}
 
 		request.TranslationTitle = version.VersionTitle
-	}
-
-	if opts.chooseTranslation {
+	case opts.chooseTranslation:
 		if !deps.isTTY() {
 			return errors.New("--choose-translation requires an interactive terminal")
 		}
@@ -240,7 +241,21 @@ func runFetch(ctx context.Context, deps commandDependencies, opts fetchOptions, 
 		}
 
 		request.TranslationTitle = version.VersionTitle
+	case opts.english && deps.defaultEnglishTranslation != "":
+		versions, err := deps.service.ListEnglishVersions(ctx, ref)
+		if err != nil {
+			return err
+		}
+
+		version, err := sefaria.MatchTranslation(versions, deps.defaultEnglishTranslation)
+		if err != nil {
+			fmt.Fprintf(deps.stderr, "default translation %q not available for %s (%v); using highest-priority English\n", deps.defaultEnglishTranslation, ref, err)
+		} else {
+			request.TranslationTitle = version.VersionTitle
+		}
 	}
+
+	fmt.Fprintln(deps.stderr, describeFetchRequest(request))
 
 	result, err := deps.service.FetchText(ctx, request)
 	if err != nil {
@@ -287,6 +302,22 @@ func ensureTrailingNewline(text string) string {
 		return text
 	}
 	return text + "\n"
+}
+
+// describeFetchRequest renders a short human-readable summary of the request
+// that is printed to stderr so stdout stays clean for piping. The translation
+// field reflects what was actually selected: a specific title, Sefaria's
+// highest-priority English translation, or the source text.
+func describeFetchRequest(req sefaria.FetchRequest) string {
+	switch req.Language {
+	case sefaria.LanguageEnglish:
+		if req.TranslationTitle != "" {
+			return fmt.Sprintf("%s (English, %s)", req.Ref, req.TranslationTitle)
+		}
+		return fmt.Sprintf("%s (English, highest-priority)", req.Ref)
+	default:
+		return fmt.Sprintf("%s (source)", req.Ref)
+	}
 }
 
 func isTransliterableSource(text sefaria.Text) bool {

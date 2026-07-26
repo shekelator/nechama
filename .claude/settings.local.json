@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs ls -la)",
+      "Bash(go build *)",
+      "Bash(go test *)",
+      "Bash(command -v go)"
+    ]
+  }
+}
