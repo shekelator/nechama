@@ -458,7 +458,7 @@ func TestFetchCommandEnglishUsesDefaultTranslationWhenAvailable(t *testing.T) {
 		stdin:                     strings.NewReader(""),
 		stdout:                    &bytes.Buffer{},
 		stderr:                    stderr,
-		isTTY:                    func() bool { return false },
+		isTTY:                     func() bool { return false },
 		defaultEnglishTranslation: "Revised JPS, 2023",
 	})
 
@@ -502,7 +502,7 @@ func TestFetchCommandEnglishFallsBackWhenDefaultTranslationUnavailable(t *testin
 		stdin:                     strings.NewReader(""),
 		stdout:                    &bytes.Buffer{},
 		stderr:                    stderr,
-		isTTY:                    func() bool { return false },
+		isTTY:                     func() bool { return false },
 		defaultEnglishTranslation: "Revised JPS, 2023",
 	})
 
@@ -543,7 +543,7 @@ func TestFetchCommandTranslationFlagOverridesDefault(t *testing.T) {
 		stdin:                     strings.NewReader(""),
 		stdout:                    &bytes.Buffer{},
 		stderr:                    &bytes.Buffer{},
-		isTTY:                    func() bool { return false },
+		isTTY:                     func() bool { return false },
 		defaultEnglishTranslation: "Revised JPS, 2023",
 	})
 
@@ -576,7 +576,7 @@ func TestFetchCommandDefaultTranslationDoesNotToggleEnglish(t *testing.T) {
 		stdin:                     strings.NewReader(""),
 		stdout:                    &bytes.Buffer{},
 		stderr:                    &bytes.Buffer{},
-		isTTY:                    func() bool { return false },
+		isTTY:                     func() bool { return false },
 		defaultEnglishTranslation: "Revised JPS, 2023",
 	})
 
