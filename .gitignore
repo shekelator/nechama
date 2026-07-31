@@ -23,3 +23,5 @@ nechama
 go.work
 
 .env*
+
+.claude/settings.local.json

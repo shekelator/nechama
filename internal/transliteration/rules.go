@@ -64,11 +64,11 @@ Transliterate pointed Hebrew text (with nikud) into English characters following
 6. **Diacritics**: Do not use any diacritics or special characters. Use only standard ASCII letters.
 7. **Word spacing**: Preserve word boundaries. Use a hyphen only for the definite article and inseparable prepositions (בְּ, לְ, כְּ, וְ → be-, le-, ke-, ve-).
 8. **Kamatz Katan**: Default to "a" when uncertain, but recognize that it may sound like "o" in some contexts.
-9. When encountering the Divine Name (י-ה-ו-ה or one of the abbreviations or euphamisms such as יי, or the Tetragrammaton represented by the letter ה alone), transliterate as "ADONAI".
+9. When encountering the Divine Name (י-ה-ו-ה or one of the abbreviations or euphemisms such as יי, or the Tetragrammaton represented by the letter ה alone), transliterate as "ADONAI".
 10. Capitalize the first letter of each line or verse.
 11. While often a beit (ב), peh (פ) or kaf (כ) at the beginning of the word is transliterated with a hard consonant, there are times, particularly if the previous word ends with a vowel, when it may be softened to a "v" sound. Always follow the pointing/nekudot carefully (in this case the presence or absence of the dagesh is key).
 
-**Examples** — apply the rules exactly as shown:
+**Examples** — apply the rules exactly as shown, with the exception that proper nouns may be transliterated according to common usage, and capitalization is appropriate at the first letter of line or verse.
 
 |Hebrew|Output|Rule demonstrated|
 |---|---|---|

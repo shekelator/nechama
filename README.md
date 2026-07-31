@@ -211,7 +211,7 @@ Current in-code defaults are:
 
 - provider: `ollama`
 - base_url: `http://host.docker.internal:11434`
-- model: `gemma4:e4b`
+- model: `gemma4:cloud`
 - api_key: `dummy-api-key`
 - timeout_seconds: `60`
 
