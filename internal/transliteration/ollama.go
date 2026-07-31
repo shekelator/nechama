@@ -55,7 +55,7 @@ func WithOllamaHTTPClient(httpClient *http.Client) OllamaOption {
 func NewOllamaClient(options ...OllamaOption) (*OllamaClient, error) {
 	client := &OllamaClient{
 		baseURL:    "http://127.0.0.1:11434",
-		model:      "gemma4:e4b",
+		model:      "gemma4:cloud",
 		apiKey:     "dummy-api-key",
 		httpClient: http.DefaultClient,
 	}
@@ -78,6 +78,12 @@ func (c *OllamaClient) Generate(ctx context.Context, systemPrompt, userPrompt st
 	body := ollamaChatRequest{
 		Model:  c.model,
 		Stream: false,
+		Options: ollamaOptions{
+			// Transliteration is a mechanical, rule-bound task. Greedy
+			// decoding keeps output stable across runs instead of letting
+			// sampling temperature introduce variation.
+			Temperature: 0,
+		},
 		Messages: []ollamaMessage{
 			{Role: "system", Content: systemPrompt},
 			{Role: "user", Content: userPrompt},
@@ -123,6 +129,13 @@ type ollamaChatRequest struct {
 	Model    string          `json:"model"`
 	Messages []ollamaMessage `json:"messages"`
 	Stream   bool            `json:"stream"`
+	Options  ollamaOptions   `json:"options,omitempty"`
+}
+
+// ollamaOptions carries Ollama model sampler settings. Temperature is pinned to
+// 0 for deterministic, rule-following transliteration output.
+type ollamaOptions struct {
+	Temperature float64 `json:"temperature"`
 }
 
 type ollamaMessage struct {

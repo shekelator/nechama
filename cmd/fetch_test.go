@@ -396,3 +396,385 @@ func TestFetchCommandFailsWhenTransliterationIsUnavailable(t *testing.T) {
 		t.Fatalf("expected transliteration unavailable error, got %v", err)
 	}
 }
+
+func TestFetchCommandPrintsSourceDetailsToStderr(t *testing.T) {
+	t.Parallel()
+
+	var captured sefaria.FetchRequest
+	stderr := &bytes.Buffer{}
+
+	cmd := newRootCommand(commandDependencies{
+		service: stubTextService{
+			fetch: func(_ context.Context, req sefaria.FetchRequest) (sefaria.Text, error) {
+				captured = req
+				return sefaria.Text{Text: "בראשית"}, nil
+			},
+			list: func(context.Context, string) ([]sefaria.VersionChoice, error) {
+				t.Fatal("list should not be called")
+				return nil, nil
+			},
+		},
+		stdin:  strings.NewReader(""),
+		stdout: &bytes.Buffer{},
+		stderr: stderr,
+		isTTY:  func() bool { return false },
+	})
+
+	cmd.SetArgs([]string{"Genesis 1:1"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if captured.Language != sefaria.LanguageSource {
+		t.Fatalf("expected source language, got %q", captured.Language)
+	}
+	if got := stderr.String(); !strings.Contains(got, "Genesis 1:1 (source)") {
+		t.Fatalf("expected source details on stderr, got %q", got)
+	}
+}
+
+func TestFetchCommandEnglishUsesDefaultTranslationWhenAvailable(t *testing.T) {
+	t.Parallel()
+
+	var captured sefaria.FetchRequest
+	stderr := &bytes.Buffer{}
+
+	cmd := newRootCommand(commandDependencies{
+		service: stubTextService{
+			list: func(_ context.Context, ref string) ([]sefaria.VersionChoice, error) {
+				if ref != "Genesis 1:1" {
+					t.Fatalf("unexpected ref: %q", ref)
+				}
+				return []sefaria.VersionChoice{
+					{VersionTitle: "THE JPS TANAKH: Gender-Sensitive Edition", ShortVersionTitle: "Revised JPS, 2023"},
+					{VersionTitle: "The Holy Scriptures: A New Translation (JPS 1917)", ShortVersionTitle: "JPS 1917"},
+				}, nil
+			},
+			fetch: func(_ context.Context, req sefaria.FetchRequest) (sefaria.Text, error) {
+				captured = req
+				return sefaria.Text{Text: "In the beginning"}, nil
+			},
+		},
+		stdin:                     strings.NewReader(""),
+		stdout:                    &bytes.Buffer{},
+		stderr:                    stderr,
+		isTTY:                    func() bool { return false },
+		defaultEnglishTranslation: "Revised JPS, 2023",
+	})
+
+	cmd.SetArgs([]string{"fetch", "--english", "Genesis 1:1"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if captured.Language != sefaria.LanguageEnglish {
+		t.Fatalf("expected english language, got %q", captured.Language)
+	}
+	if captured.TranslationTitle != "THE JPS TANAKH: Gender-Sensitive Edition" {
+		t.Fatalf("expected default translation title, got %q", captured.TranslationTitle)
+	}
+	if got := stderr.String(); !strings.Contains(got, "English, THE JPS TANAKH: Gender-Sensitive Edition") {
+		t.Fatalf("expected default translation in stderr details, got %q", got)
+	}
+	if strings.Contains(stderr.String(), "not available") {
+		t.Fatalf("did not expect fallback warning, got %q", stderr.String())
+	}
+}
+
+func TestFetchCommandEnglishFallsBackWhenDefaultTranslationUnavailable(t *testing.T) {
+	t.Parallel()
+
+	var captured sefaria.FetchRequest
+	stderr := &bytes.Buffer{}
+
+	cmd := newRootCommand(commandDependencies{
+		service: stubTextService{
+			list: func(context.Context, string) ([]sefaria.VersionChoice, error) {
+				return []sefaria.VersionChoice{
+					{VersionTitle: "The Holy Scriptures: A New Translation (JPS 1917)", ShortVersionTitle: "JPS 1917"},
+				}, nil
+			},
+			fetch: func(_ context.Context, req sefaria.FetchRequest) (sefaria.Text, error) {
+				captured = req
+				return sefaria.Text{Text: "In the beginning"}, nil
+			},
+		},
+		stdin:                     strings.NewReader(""),
+		stdout:                    &bytes.Buffer{},
+		stderr:                    stderr,
+		isTTY:                    func() bool { return false },
+		defaultEnglishTranslation: "Revised JPS, 2023",
+	})
+
+	cmd.SetArgs([]string{"fetch", "--english", "Genesis 1:1"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if captured.Language != sefaria.LanguageEnglish {
+		t.Fatalf("expected english language, got %q", captured.Language)
+	}
+	if captured.TranslationTitle != "" {
+		t.Fatalf("expected highest-priority fallback (empty title), got %q", captured.TranslationTitle)
+	}
+	if got := stderr.String(); !strings.Contains(got, "not available") || !strings.Contains(got, "highest-priority") {
+		t.Fatalf("expected fallback warning + highest-priority details on stderr, got %q", got)
+	}
+}
+
+func TestFetchCommandTranslationFlagOverridesDefault(t *testing.T) {
+	t.Parallel()
+
+	var captured sefaria.FetchRequest
+
+	cmd := newRootCommand(commandDependencies{
+		service: stubTextService{
+			list: func(context.Context, string) ([]sefaria.VersionChoice, error) {
+				return []sefaria.VersionChoice{
+					{VersionTitle: "THE JPS TANAKH: Gender-Sensitive Edition", ShortVersionTitle: "Revised JPS, 2023"},
+					{VersionTitle: "The Holy Scriptures: A New Translation (JPS 1917)", ShortVersionTitle: "JPS 1917"},
+				}, nil
+			},
+			fetch: func(_ context.Context, req sefaria.FetchRequest) (sefaria.Text, error) {
+				captured = req
+				return sefaria.Text{Text: "In the beginning"}, nil
+			},
+		},
+		stdin:                     strings.NewReader(""),
+		stdout:                    &bytes.Buffer{},
+		stderr:                    &bytes.Buffer{},
+		isTTY:                    func() bool { return false },
+		defaultEnglishTranslation: "Revised JPS, 2023",
+	})
+
+	cmd.SetArgs([]string{"fetch", "--translation", "jps 1917", "Genesis 1:1"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if captured.TranslationTitle != "The Holy Scriptures: A New Translation (JPS 1917)" {
+		t.Fatalf("expected --translation flag to win, got %q", captured.TranslationTitle)
+	}
+}
+
+func TestFetchCommandDefaultTranslationDoesNotToggleEnglish(t *testing.T) {
+	t.Parallel()
+
+	var captured sefaria.FetchRequest
+
+	cmd := newRootCommand(commandDependencies{
+		service: stubTextService{
+			fetch: func(_ context.Context, req sefaria.FetchRequest) (sefaria.Text, error) {
+				captured = req
+				return sefaria.Text{Text: "בראשית"}, nil
+			},
+			list: func(context.Context, string) ([]sefaria.VersionChoice, error) {
+				t.Fatal("list should not be called without --english")
+				return nil, nil
+			},
+		},
+		stdin:                     strings.NewReader(""),
+		stdout:                    &bytes.Buffer{},
+		stderr:                    &bytes.Buffer{},
+		isTTY:                    func() bool { return false },
+		defaultEnglishTranslation: "Revised JPS, 2023",
+	})
+
+	cmd.SetArgs([]string{"Genesis 1:1"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if captured.Language != sefaria.LanguageSource {
+		t.Fatalf("default translation env var must not toggle english, got %q", captured.Language)
+	}
+	if captured.TranslationTitle != "" {
+		t.Fatalf("expected empty translation title for source fetch, got %q", captured.TranslationTitle)
+	}
+}
+
+func TestRootCommandTransliteratesRawHebrewArgument(t *testing.T) {
+	t.Parallel()
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	cmd := newRootCommand(commandDependencies{
+		service: stubTextService{
+			fetch: func(context.Context, sefaria.FetchRequest) (sefaria.Text, error) {
+				t.Fatal("fetch should not be called for raw Hebrew input")
+				return sefaria.Text{}, nil
+			},
+			list: func(context.Context, string) ([]sefaria.VersionChoice, error) {
+				t.Fatal("list should not be called for raw Hebrew input")
+				return nil, nil
+			},
+		},
+		newTransliterator: func() (transliterator, error) {
+			return stubTransliterator{
+				transliterate: func(_ context.Context, text string) (string, error) {
+					if text != "שָׁלוֹם עָלֵיכֶם" {
+						t.Fatalf("unexpected text passed to transliterator: %q", text)
+					}
+					return "shalom aleichem", nil
+				},
+			}, nil
+		},
+		stdin:  strings.NewReader(""),
+		stdout: stdout,
+		stderr: stderr,
+		isTTY:  func() bool { return false },
+	})
+
+	cmd.SetArgs([]string{"שָׁלוֹם עָלֵיכֶם"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if got := stdout.String(); got != "shalom aleichem\n" {
+		t.Fatalf("unexpected stdout: %q", got)
+	}
+	if got := stderr.String(); !strings.Contains(got, "(transliterate)") {
+		t.Fatalf("expected transliterate details on stderr, got %q", got)
+	}
+}
+
+func TestFetchCommandTransliteratesRawHebrewFromStdin(t *testing.T) {
+	t.Parallel()
+
+	stdout := &bytes.Buffer{}
+
+	cmd := newRootCommand(commandDependencies{
+		service: stubTextService{
+			fetch: func(context.Context, sefaria.FetchRequest) (sefaria.Text, error) {
+				t.Fatal("fetch should not be called for raw Hebrew input")
+				return sefaria.Text{}, nil
+			},
+			list: func(context.Context, string) ([]sefaria.VersionChoice, error) {
+				t.Fatal("list should not be called for raw Hebrew input")
+				return nil, nil
+			},
+		},
+		newTransliterator: func() (transliterator, error) {
+			return stubTransliterator{
+				transliterate: func(_ context.Context, text string) (string, error) {
+					if text != "בְּרֵאשִׁית" {
+						t.Fatalf("unexpected text passed to transliterator: %q", text)
+					}
+					return "bereshit", nil
+				},
+			}, nil
+		},
+		stdin:      strings.NewReader("בְּרֵאשִׁית\n"),
+		stdout:     stdout,
+		stderr:     &bytes.Buffer{},
+		isTTY:      func() bool { return false },
+		isInputTTY: func() bool { return false },
+	})
+
+	cmd.SetArgs([]string{"fetch"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if got := stdout.String(); got != "bereshit\n" {
+		t.Fatalf("unexpected stdout: %q", got)
+	}
+}
+
+func TestFetchCommandRawHebrewRejectsEnglishFlag(t *testing.T) {
+	t.Parallel()
+
+	cmd := newRootCommand(commandDependencies{
+		service: stubTextService{
+			fetch: func(context.Context, sefaria.FetchRequest) (sefaria.Text, error) {
+				t.Fatal("fetch should not be called")
+				return sefaria.Text{}, nil
+			},
+			list: func(context.Context, string) ([]sefaria.VersionChoice, error) {
+				t.Fatal("list should not be called")
+				return nil, nil
+			},
+		},
+		newTransliterator: func() (transliterator, error) {
+			t.Fatal("transliterator should not be constructed on flag conflict")
+			return nil, nil
+		},
+		stdin:  strings.NewReader(""),
+		stdout: &bytes.Buffer{},
+		stderr: &bytes.Buffer{},
+		isTTY:  func() bool { return false },
+	})
+
+	cmd.SetArgs([]string{"--english", "שָׁלוֹם"})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "cannot be combined with --english") {
+		t.Fatalf("expected hebrew+english conflict error, got %v", err)
+	}
+}
+
+func TestFetchCommandRawHebrewRespectsOutputFile(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	output := filepath.Join(dir, "translit.txt")
+
+	cmd := newRootCommand(commandDependencies{
+		service: stubTextService{
+			fetch: func(context.Context, sefaria.FetchRequest) (sefaria.Text, error) {
+				t.Fatal("fetch should not be called for raw Hebrew input")
+				return sefaria.Text{}, nil
+			},
+			list: func(context.Context, string) ([]sefaria.VersionChoice, error) { return nil, nil },
+		},
+		newTransliterator: func() (transliterator, error) {
+			return stubTransliterator{
+				transliterate: func(context.Context, string) (string, error) {
+					return "shalom", nil
+				},
+			}, nil
+		},
+		stdin:  strings.NewReader(""),
+		stdout: &bytes.Buffer{},
+		stderr: &bytes.Buffer{},
+		isTTY:  func() bool { return false },
+	})
+
+	cmd.SetArgs([]string{"--output", output, "שָׁלוֹם"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	contents, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if got := string(contents); got != "shalom\n" {
+		t.Fatalf("unexpected file contents: %q", got)
+	}
+}
+
+func TestFetchCommandRawHebrewFailsWhenTransliterationUnavailable(t *testing.T) {
+	t.Parallel()
+
+	cmd := newRootCommand(commandDependencies{
+		service: stubTextService{
+			fetch: func(context.Context, sefaria.FetchRequest) (sefaria.Text, error) {
+				t.Fatal("fetch should not be called for raw Hebrew input")
+				return sefaria.Text{}, nil
+			},
+			list: func(context.Context, string) ([]sefaria.VersionChoice, error) { return nil, nil },
+		},
+		newTransliterator: nil,
+		stdin:             strings.NewReader(""),
+		stdout:            &bytes.Buffer{},
+		stderr:            &bytes.Buffer{},
+		isTTY:             func() bool { return false },
+	})
+
+	cmd.SetArgs([]string{"שָׁלוֹם"})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "not configured") {
+		t.Fatalf("expected transliteration unavailable error, got %v", err)
+	}
+}

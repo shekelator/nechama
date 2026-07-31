@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"unicode"
 
 	"github.com/shekelator/nechama/internal/config"
 	"github.com/shekelator/nechama/internal/sefaria"
@@ -37,13 +38,14 @@ type transliterator interface {
 }
 
 type commandDependencies struct {
-	service           textService
-	newTransliterator func() (transliterator, error)
-	stdin             io.Reader
-	stdout            io.Writer
-	stderr            io.Writer
-	isTTY             func() bool
-	isInputTTY        func() bool
+	service                   textService
+	newTransliterator         func() (transliterator, error)
+	stdin                     io.Reader
+	stdout                    io.Writer
+	stderr                    io.Writer
+	isTTY                     func() bool
+	isInputTTY                func() bool
+	defaultEnglishTranslation string
 }
 
 func Execute() error {
@@ -83,10 +85,11 @@ func defaultDependencies() commandDependencies {
 			sefaria.WithBaseURL(os.Getenv("NECHAMA_SEFARIA_BASE_URL")),
 			sefaria.WithUserAgent(fmt.Sprintf("nechama/%s", Version)),
 		),
-		newTransliterator: newTransliterator,
-		stdin:             os.Stdin,
-		stdout:            os.Stdout,
-		stderr:            os.Stderr,
+		newTransliterator:         newTransliterator,
+		stdin:                     os.Stdin,
+		stdout:                    os.Stdout,
+		stderr:                    os.Stderr,
+		defaultEnglishTranslation: os.Getenv("NECHAMA_DEFAULT_ENGLISH_TRANSLATION"),
 		isTTY: func() bool {
 			return isTerminal(os.Stdin) && isTerminal(os.Stdout)
 		},
@@ -174,7 +177,7 @@ func resolveReference(args []string, deps commandDependencies) (string, error) {
 		return args[0], nil
 	}
 	if inputIsTTY(deps) {
-		return "", errors.New("reference is required")
+		return "", errors.New("reference or text is required")
 	}
 
 	data, err := io.ReadAll(deps.stdin)
@@ -184,7 +187,7 @@ func resolveReference(args []string, deps commandDependencies) (string, error) {
 
 	ref := strings.TrimSpace(string(data))
 	if ref == "" {
-		return "", errors.New("reference is required")
+		return "", errors.New("reference or text is required")
 	}
 	return ref, nil
 }
@@ -204,13 +207,20 @@ func runFetch(ctx context.Context, deps commandDependencies, opts fetchOptions, 
 		return errors.New("--transliteration can only be used with source text (not --english, --translation, or --choose-translation)")
 	}
 
+	// Input that contains Hebrew script is treated as raw text to transliterate
+	// directly, bypassing the Sefaria lookup entirely.
+	if containsHebrewScript(ref) {
+		return runTransliterateText(ctx, deps, opts, ref)
+	}
+
 	request := sefaria.FetchRequest{Ref: ref, Language: sefaria.LanguageSource}
 
 	if opts.english || opts.translation != "" || opts.chooseTranslation {
 		request.Language = sefaria.LanguageEnglish
 	}
 
-	if opts.translation != "" {
+	switch {
+	case opts.translation != "":
 		versions, err := deps.service.ListEnglishVersions(ctx, ref)
 		if err != nil {
 			return err
@@ -222,9 +232,7 @@ func runFetch(ctx context.Context, deps commandDependencies, opts fetchOptions, 
 		}
 
 		request.TranslationTitle = version.VersionTitle
-	}
-
-	if opts.chooseTranslation {
+	case opts.chooseTranslation:
 		if !deps.isTTY() {
 			return errors.New("--choose-translation requires an interactive terminal")
 		}
@@ -240,7 +248,21 @@ func runFetch(ctx context.Context, deps commandDependencies, opts fetchOptions, 
 		}
 
 		request.TranslationTitle = version.VersionTitle
+	case opts.english && deps.defaultEnglishTranslation != "":
+		versions, err := deps.service.ListEnglishVersions(ctx, ref)
+		if err != nil {
+			return err
+		}
+
+		version, err := sefaria.MatchTranslation(versions, deps.defaultEnglishTranslation)
+		if err != nil {
+			fmt.Fprintf(deps.stderr, "default translation %q not available for %s (%v); using highest-priority English\n", deps.defaultEnglishTranslation, ref, err)
+		} else {
+			request.TranslationTitle = version.VersionTitle
+		}
 	}
+
+	fmt.Fprintln(deps.stderr, describeFetchRequest(request))
 
 	result, err := deps.service.FetchText(ctx, request)
 	if err != nil {
@@ -271,12 +293,70 @@ func runFetch(ctx context.Context, deps commandDependencies, opts fetchOptions, 
 	}
 
 	content := ensureTrailingNewline(result.Text)
+	return writeOutput(deps, opts, content)
+}
+
+// runTransliterateText transliterates raw Hebrew/Aramaic text supplied directly
+// (as an argument or via stdin) instead of looking it up on Sefaria. It reuses
+// the same transliteration provider configuration as source-text transliteration.
+func runTransliterateText(ctx context.Context, deps commandDependencies, opts fetchOptions, text string) error {
+	if opts.english || opts.translation != "" || opts.chooseTranslation {
+		return errors.New("Hebrew text input cannot be combined with --english, --translation, or --choose-translation")
+	}
+	if deps.newTransliterator == nil {
+		return errors.New("transliteration service is not configured")
+	}
+
+	fmt.Fprintf(deps.stderr, "%s (transliterate)\n", previewText(text, 40))
+
+	service, err := deps.newTransliterator()
+	if err != nil {
+		return err
+	}
+
+	transliterated, err := service.Transliterate(ctx, transliteration.Request{
+		Text:           text,
+		LanguageFamily: "hebrew",
+		ActualLanguage: "he",
+	})
+	if err != nil {
+		return err
+	}
+
+	return writeOutput(deps, opts, ensureTrailingNewline(transliterated))
+}
+
+func writeOutput(deps commandDependencies, opts fetchOptions, content string) error {
 	if opts.outputPath != "" {
 		return os.WriteFile(opts.outputPath, []byte(content), 0o644)
 	}
-
-	_, err = io.WriteString(deps.stdout, content)
+	_, err := io.WriteString(deps.stdout, content)
 	return err
+}
+
+// containsHebrewScript reports whether s contains any character in the
+// Unicode Hebrew script. Such input is treated as raw text to transliterate
+// rather than as a Sefaria reference.
+func containsHebrewScript(s string) bool {
+	for _, r := range s {
+		if unicode.Is(unicode.Hebrew, r) {
+			return true
+		}
+	}
+	return false
+}
+
+// previewText returns a single-line preview of text truncated to max runes,
+// suitable for a stderr status line.
+func previewText(text string, max int) string {
+	preview := strings.TrimSpace(text)
+	if idx := strings.IndexAny(preview, "\n\r"); idx >= 0 {
+		preview = preview[:idx]
+	}
+	if max > 0 && len([]rune(preview)) > max {
+		preview = string([]rune(preview)[:max]) + "…"
+	}
+	return preview
 }
 
 func ensureTrailingNewline(text string) string {
@@ -287,6 +367,22 @@ func ensureTrailingNewline(text string) string {
 		return text
 	}
 	return text + "\n"
+}
+
+// describeFetchRequest renders a short human-readable summary of the request
+// that is printed to stderr so stdout stays clean for piping. The translation
+// field reflects what was actually selected: a specific title, Sefaria's
+// highest-priority English translation, or the source text.
+func describeFetchRequest(req sefaria.FetchRequest) string {
+	switch req.Language {
+	case sefaria.LanguageEnglish:
+		if req.TranslationTitle != "" {
+			return fmt.Sprintf("%s (English, %s)", req.Ref, req.TranslationTitle)
+		}
+		return fmt.Sprintf("%s (English, highest-priority)", req.Ref)
+	default:
+		return fmt.Sprintf("%s (source)", req.Ref)
+	}
 }
 
 func isTransliterableSource(text sefaria.Text) bool {

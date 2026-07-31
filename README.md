@@ -13,6 +13,7 @@ It defaults to the source language of the work, which means Hebrew for Tanakh an
 - supports a specific English translation with `--translation`
 - supports interactive translation selection with `--choose-translation`
 - supports transliteration of source Hebrew/Aramaic text with `--transliteration`
+- transliterates arbitrary Hebrew text passed directly (argument or stdin) without a Sefaria lookup
 - uses deterministic, network-free tests for the CLI and Sefaria client logic
 
 ## Requirements
@@ -73,6 +74,19 @@ nechama --translation "Revised JPS, 2023" "Genesis 1:1"
 nechama fetch --translation "THE JPS TANAKH: Gender-Sensitive Edition" "Genesis 1:1"
 ```
 
+### Set a default English translation
+
+Set `NECHAMA_DEFAULT_ENGLISH_TRANSLATION` to a short or full version title. When `--english` is passed, nechama resolves that translation by name instead of using Sefaria's highest-priority English translation.
+
+```bash
+export NECHAMA_DEFAULT_ENGLISH_TRANSLATION="Revised JPS, 2023"
+nechama --english "Genesis 1:1"
+```
+
+The env var only takes effect with `--english`. It does not change plain `nechama "Genesis 1:1"`, which still fetches the source text. `--translation` and `--choose-translation` always override it.
+
+If the configured translation is not available for the requested ref (for example, the ref has no matching English version), nechama falls back to the highest-priority English translation and prints a note to stderr.
+
 ### Choose a translation interactively
 
 ```bash
@@ -84,6 +98,16 @@ nechama fetch --choose-translation "Genesis 1:1"
 ```bash
 nechama -o genesis.txt "Genesis 1"
 ```
+
+### Text details go to stderr
+
+For every fetch, nechama prints a short details line to stderr — for example `Genesis 1:1 (source)` or `Genesis 1:1 (English, Revised JPS, 2023)` — so you can pipe the text itself to another tool without the metadata mixing in:
+
+```bash
+nechama --english "Genesis 1:1" | pbcopy
+```
+
+stdout gets just the text; stderr gets the details line (and any fallback notes).
 
 ### Transliterate source Hebrew/Aramaic text
 
@@ -98,11 +122,22 @@ nechama --transliteration "Psalm 132"
 
 `--transliteration` only works with source-language fetches. It cannot be combined with `--english`, `--translation`, or `--choose-translation`.
 
+### Transliterate arbitrary Hebrew text directly
+
+If the input contains Hebrew script, `nechama` skips the Sefaria lookup and transliterates the text directly. No flag is needed — pass the text as an argument or pipe it via stdin:
+
+```bash
+nechama "שָׁלוֹם עָלֵיכֶם"
+echo "בְּרֵאשִׁית" | nechama
+```
+
+This uses the same transliteration provider/settings as `--transliteration` (see [Transliteration configuration](#transliteration-configuration)). It cannot be combined with `--english`, `--translation`, or `--choose-translation`. Non-Hebrew input is still treated as a Sefaria reference.
+
 ## Command reference
 
 ```text
-nechama [flags] [ref]
-nechama fetch [flags] [ref]
+nechama [flags] [ref|text]
+nechama fetch [flags] [ref|text]
 nechama version
 ```
 
@@ -124,13 +159,14 @@ By default, `nechama` asks Sefaria for the `source` version of the requested ref
 
 ### English behavior
 
-- `--english` fetches Sefaria's highest-priority English translation.
+- `--english` fetches Sefaria's highest-priority English translation, or the translation named by `NECHAMA_DEFAULT_ENGLISH_TRANSLATION` if set and available for the ref.
 - `--translation` resolves a specific English version title before fetching the text.
 - `--choose-translation` lists the English versions available for that ref and prompts you to choose one.
 
 ### Transliteration behavior
 
 - `--transliteration` transliterates source Hebrew/Aramaic text and outputs transliteration only.
+- Input containing Hebrew script is transliterated directly without a Sefaria lookup.
 - Transliteration errors fail the command.
 - The transliteration rules are built into source at `internal/transliteration/rules.go`.
 
@@ -175,7 +211,7 @@ Current in-code defaults are:
 
 - provider: `ollama`
 - base_url: `http://host.docker.internal:11434`
-- model: `gemma4:e4b`
+- model: `gemma4:cloud`
 - api_key: `dummy-api-key`
 - timeout_seconds: `60`
 

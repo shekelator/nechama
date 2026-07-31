@@ -14,8 +14,14 @@
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
+nechama
+
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
 # Go workspace file
 go.work
+
+.env*
+
+.claude/settings.local.json
