@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -326,7 +327,7 @@ func TestFetchCommandTransliteratesSourceText(t *testing.T) {
 				return nil, nil
 			},
 		},
-		newTransliterator: func() (transliterator, error) {
+		newTransliterator: func(_ *slog.Logger) (transliterator, error) {
 			return stubTransliterator{
 				transliterate: func(_ context.Context, text string) (string, error) {
 					if text != "מִזְמ֥וֹר" {
@@ -610,7 +611,7 @@ func TestRootCommandTransliteratesRawHebrewArgument(t *testing.T) {
 				return nil, nil
 			},
 		},
-		newTransliterator: func() (transliterator, error) {
+		newTransliterator: func(_ *slog.Logger) (transliterator, error) {
 			return stubTransliterator{
 				transliterate: func(_ context.Context, text string) (string, error) {
 					if text != "שָׁלוֹם עָלֵיכֶם" {
@@ -655,7 +656,7 @@ func TestFetchCommandTransliteratesRawHebrewFromStdin(t *testing.T) {
 				return nil, nil
 			},
 		},
-		newTransliterator: func() (transliterator, error) {
+		newTransliterator: func(_ *slog.Logger) (transliterator, error) {
 			return stubTransliterator{
 				transliterate: func(_ context.Context, text string) (string, error) {
 					if text != "בְּרֵאשִׁית" {
@@ -696,7 +697,7 @@ func TestFetchCommandRawHebrewRejectsEnglishFlag(t *testing.T) {
 				return nil, nil
 			},
 		},
-		newTransliterator: func() (transliterator, error) {
+		newTransliterator: func(_ *slog.Logger) (transliterator, error) {
 			t.Fatal("transliterator should not be constructed on flag conflict")
 			return nil, nil
 		},
@@ -727,7 +728,7 @@ func TestFetchCommandRawHebrewRespectsOutputFile(t *testing.T) {
 			},
 			list: func(context.Context, string) ([]sefaria.VersionChoice, error) { return nil, nil },
 		},
-		newTransliterator: func() (transliterator, error) {
+		newTransliterator: func(_ *slog.Logger) (transliterator, error) {
 			return stubTransliterator{
 				transliterate: func(context.Context, string) (string, error) {
 					return "shalom", nil
@@ -776,5 +777,89 @@ func TestFetchCommandRawHebrewFailsWhenTransliterationUnavailable(t *testing.T) 
 	err := cmd.Execute()
 	if err == nil || !strings.Contains(err.Error(), "not configured") {
 		t.Fatalf("expected transliteration unavailable error, got %v", err)
+	}
+}
+
+// writeHybridConfig writes a config that selects hybrid mode with no LLM
+// provider configured, so the command runs the deterministic engine only.
+func writeHybridConfig(t *testing.T, dir string) string {
+	t.Helper()
+	path := filepath.Join(dir, "config.json")
+	content := `{"transliteration":{"provider":"ollama","mode":"hybrid","ollama":{"base_url":"","model":"","api_key":"","timeout_seconds":0}}}`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	return path
+}
+
+// TestCommandUsesHybridEngineWithoutProvider verifies that with hybrid mode
+// and no LLM configured, the command transliterates raw Hebrew using only the
+// deterministic engine (no network).
+func TestCommandUsesHybridEngineWithoutProvider(t *testing.T) {
+	t.Setenv("NECHAMA_CONFIG", writeHybridConfig(t, t.TempDir()))
+
+	stdout := &bytes.Buffer{}
+	deps := defaultDependencies()
+	deps.stdin = strings.NewReader("")
+	deps.stdout = stdout
+	deps.stderr = &bytes.Buffer{}
+	deps.isTTY = func() bool { return false }
+	deps.isInputTTY = func() bool { return false }
+
+	cmd := newRootCommand(deps)
+	cmd.SetArgs([]string{"שְׁמַע מִדְבָּר"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if got, want := stdout.String(), "Shema midbar\n"; got != want {
+		t.Fatalf("unexpected stdout: got %q want %q", got, want)
+	}
+}
+
+// TestCommandDebugLoggingEmitted verifies --debug routes engine/hybrid debug
+// logs to stderr.
+func TestCommandDebugLoggingEmitted(t *testing.T) {
+	t.Setenv("NECHAMA_CONFIG", writeHybridConfig(t, t.TempDir()))
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	deps := defaultDependencies()
+	deps.stdin = strings.NewReader("")
+	deps.stdout = stdout
+	deps.stderr = stderr
+	deps.isTTY = func() bool { return false }
+	deps.isInputTTY = func() bool { return false }
+
+	cmd := newRootCommand(deps)
+	cmd.SetArgs([]string{"--debug", "שְׁמַע מִדְבָּר"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stderr.String(), "level=DEBUG") {
+		t.Fatalf("expected debug log lines on stderr, got %q", stderr.String())
+	}
+}
+
+// TestCommandNoDebugLoggingByDefault verifies that without --debug, no
+// debug-level log lines are written to stderr.
+func TestCommandNoDebugLoggingByDefault(t *testing.T) {
+	t.Setenv("NECHAMA_CONFIG", writeHybridConfig(t, t.TempDir()))
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	deps := defaultDependencies()
+	deps.stdin = strings.NewReader("")
+	deps.stdout = stdout
+	deps.stderr = stderr
+	deps.isTTY = func() bool { return false }
+	deps.isInputTTY = func() bool { return false }
+
+	cmd := newRootCommand(deps)
+	cmd.SetArgs([]string{"שְׁמַע מִדְבָּר"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if strings.Contains(stderr.String(), "level=DEBUG") {
+		t.Fatalf("expected no debug log lines without --debug, got %q", stderr.String())
 	}
 }

@@ -149,6 +149,7 @@ nechama version
 | `-t`, `--translation <name>` | Fetch a specific English translation by short or full title |
 | `--choose-translation` | Prompt for an English translation in an interactive terminal |
 | `--transliteration` | Transliterate source Hebrew/Aramaic text into Latin letters |
+| `--debug` | Emit debug logging to stderr, including the prompts sent to the LLM and the engine's per-word decisions (also: `NECHAMA_DEBUG`) |
 | `-o`, `--output <path>` | Write the fetched text to a file instead of stdout |
 
 ## How text selection works
@@ -169,6 +170,8 @@ By default, `nechama` asks Sefaria for the `source` version of the requested ref
 - Input containing Hebrew script is transliterated directly without a Sefaria lookup.
 - Transliteration errors fail the command.
 - The transliteration rules are built into source at `internal/transliteration/rules.go`.
+- By default nechama uses a **hybrid** engine: a deterministic, network-free transliteration of the pointed Hebrew, with an LLM consulted only for the few words the engine flags as genuinely ambiguous (for example, a non-initial shva). Set `mode` to `model` to send the entire text to the LLM instead. See [How transliteration works](#how-transliteration-works).
+- Add `--debug` (or set `NECHAMA_DEBUG=1`) to see on stderr exactly what the engine decided for each word and, when the LLM is consulted, the prompt sent and the response received.
 
 ## Transliteration configuration
 
@@ -183,6 +186,7 @@ Example config:
 {
 	"transliteration": {
 		"provider": "ollama",
+		"mode": "hybrid",
 		"ollama": {
 			"base_url": "http://host.docker.internal:11434",
 			"model": "gemma4:e4b",
@@ -193,13 +197,17 @@ Example config:
 }
 ```
 
+`mode` is `hybrid` (default) or `model`. In hybrid mode the `ollama` block is optional — if `base_url` and `model` are both empty the engine runs with no network calls at all. In model mode the `ollama` block is required.
+
 Environment variable overrides (take precedence over config file):
 
 - `NECHAMA_TRANSLITERATION_PROVIDER`
+- `NECHAMA_TRANSLITERATION_MODE` — `hybrid` or `model`
 - `NECHAMA_TRANSLITERATION_BASE_URL`
 - `NECHAMA_TRANSLITERATION_MODEL`
 - `NECHAMA_TRANSLITERATION_API_KEY`
 - `NECHAMA_TRANSLITERATION_TIMEOUT_SECONDS`
+- `NECHAMA_DEBUG` — enable debug logging to stderr (`1`, `true`, `yes`, or `on`)
 
 ### Defaults and precedence
 
@@ -210,6 +218,7 @@ Environment variable overrides (take precedence over config file):
 Current in-code defaults are:
 
 - provider: `ollama`
+- mode: `hybrid`
 - base_url: `http://host.docker.internal:11434`
 - model: `gemma4:cloud`
 - api_key: `dummy-api-key`
@@ -237,6 +246,23 @@ Currently implemented provider:
 - `ollama`
 
 The transliteration module already uses a provider factory pattern in `internal/transliteration/factory.go`, so additional providers can be added without changing command flow.
+
+## How transliteration works
+
+In the default **hybrid** mode, `nechama` transliterates pointed Hebrew in two layers:
+
+1. A deterministic engine (`internal/transliteration/engine.go`) walks each Hebrew word slot by slot, applying the consonant and vowel tables, dagesh, final letters, the definite article and inseparable prepositions, cholam/shuruk, the Divine Name, and line-initial capitalization. This handles the mechanical cases exactly and needs no network.
+2. The engine flags a small number of genuinely ambiguous cases for review — chiefly a shva that is neither word-initial, nor after a long vowel, nor under a dagesh chazak. If an LLM provider is configured, those flagged words (deduplicated) are sent to it in a single prompt asking for a JSON map of `{"<hebrew>": "<transliteration>"}`, and the answers are spliced back. If no provider is configured, or the provider errors or returns unparseable JSON, the engine's best-guess transliteration is used as-is.
+
+Use `--debug` (or `NECHAMA_DEBUG=1`) to see on stderr which words the engine flagged, the exact prompt sent to the LLM, and the response received.
+
+**Known limitations of the engine layer:**
+
+- Kamatz is always rendered `a`. Kamatz katan (`o`) is not detected contextually, so a small number of words (e.g. some `qatal` forms) may be wrong; the hybrid path will not flag these for the LLM.
+- An ambiguous shva with no provider is best-guessed as silent.
+- Proper-noun capitalization follows the rules table note (common usage), but the engine emits lowercase except for line/verse-initial capitalization; the LLM may capitalize proper nouns when consulted.
+
+Set `mode` to `model` to bypass the engine and let the LLM transliterate the entire text, matching the pre-hybrid behavior.
 
 ## Development overview
 
