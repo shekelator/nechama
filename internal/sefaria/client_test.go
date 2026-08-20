@@ -138,6 +138,24 @@ func TestStripCantillationPreservesNekudotMetegAndSofPasuq(t *testing.T) {
 	}
 }
 
+func TestStripCantillationRemovesPaseq(t *testing.T) {
+	t.Parallel()
+
+	input := "לֵאמֹר׀"
+	if got, want := stripCantillation(input), "לֵאמֹר"; got != want {
+		t.Fatalf("unexpected normalized Hebrew: got %q want %q", got, want)
+	}
+}
+
+func TestStripCantillationRemovesPaseqWithoutDoubleWhitespace(t *testing.T) {
+	t.Parallel()
+
+	input := "שָׁלוֹם ׀ עוֹלָם"
+	if got, want := stripCantillation(input), "שָׁלוֹם עוֹלָם"; got != want {
+		t.Fatalf("unexpected normalized Hebrew spacing: got %q want %q", got, want)
+	}
+}
+
 func TestClientListsEnglishVersionsSortedByPriority(t *testing.T) {
 	t.Parallel()
 
