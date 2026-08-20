@@ -53,6 +53,46 @@ func TestClientFetchSourceText(t *testing.T) {
 	}
 }
 
+func TestClientFetchSourceTextPreservesCantillationWhenRequested(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got, want := r.URL.Path, "/api/v3/texts/Genesis 1:1"; got != want {
+			t.Fatalf("unexpected path: got %q want %q", got, want)
+		}
+
+		assertQueryContains(t, r.URL.Query(), "version", "source")
+		assertQueryContains(t, r.URL.Query(), "return_format", "text_only")
+
+		writeJSON(t, w, map[string]any{
+			"ref":   "Genesis 1:1",
+			"heRef": "בראשית א׳:א׳",
+			"versions": []map[string]any{
+				{
+					"versionTitle":       "Miqra according to the Masorah",
+					"shortVersionTitle":  "MAM",
+					"languageFamilyName": "hebrew",
+					"actualLanguage":     "he",
+					"direction":          "rtl",
+					"isSource":           true,
+					"text":               "בְּ֑רֵֽאשִׁית׀",
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(WithBaseURL(server.URL), WithHTTPClient(server.Client()))
+	text, err := client.FetchText(context.Background(), FetchRequest{Ref: "Genesis 1:1", Language: LanguageSource, PreserveCantillation: true})
+	if err != nil {
+		t.Fatalf("FetchText() error = %v", err)
+	}
+
+	if got, want := text.Text, "בְּ֑רֵֽאשִׁית׀"; got != want {
+		t.Fatalf("unexpected text: got %q want %q", got, want)
+	}
+}
+
 func TestClientFetchSpecificEnglishTranslation(t *testing.T) {
 	t.Parallel()
 

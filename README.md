@@ -13,6 +13,7 @@ It defaults to the source language of the work, which means Hebrew for Tanakh an
 - supports a specific English translation with `--translation`
 - supports interactive translation selection with `--choose-translation`
 - supports transliteration of source Hebrew/Aramaic text with `--transliteration`
+- supports preserving Hebrew cantillation marks with `--preserve-cantillation`
 - transliterates arbitrary Hebrew text passed directly (argument or stdin) without a Sefaria lookup
 - uses deterministic, network-free tests for the CLI and Sefaria client logic
 
@@ -122,6 +123,16 @@ nechama --transliteration "Psalm 132"
 
 `--transliteration` only works with source-language fetches. It cannot be combined with `--english`, `--translation`, or `--choose-translation`.
 
+### Preserve cantillation marks in source text
+
+By default, source Hebrew output strips cantillation marks (te'amim), while preserving niqqud and sof pasuq/meteg.
+
+Use `--preserve-cantillation` to keep all cantillation marks in the output:
+
+```bash
+nechama --preserve-cantillation "Genesis 1:1"
+```
+
 ### Transliterate arbitrary Hebrew text directly
 
 If the input contains Hebrew script, `nechama` skips the Sefaria lookup and transliterates the text directly. No flag is needed — pass the text as an argument or pipe it via stdin:
@@ -149,6 +160,7 @@ nechama version
 | `-t`, `--translation <name>` | Fetch a specific English translation by short or full title |
 | `--choose-translation` | Prompt for an English translation in an interactive terminal |
 | `--transliteration` | Transliterate source Hebrew/Aramaic text into Latin letters |
+| `-c`, `--preserve-cantillation` | Keep Hebrew cantillation marks in source text output |
 | `-o`, `--output <path>` | Write the fetched text to a file instead of stdout |
 
 ## How text selection works
@@ -156,6 +168,8 @@ nechama version
 ### Default behavior
 
 By default, `nechama` asks Sefaria for the `source` version of the requested ref. That follows Sefaria's own notion of the source text, which is usually Hebrew for Tanakh and the original/default language for other works.
+
+For source Hebrew, `nechama` strips cantillation marks by default for cleaner plain-text output. Add `--preserve-cantillation` to keep them.
 
 ### English behavior
 

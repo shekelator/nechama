@@ -31,9 +31,10 @@ const (
 )
 
 type FetchRequest struct {
-	Ref              string
-	Language         Language
-	TranslationTitle string
+	Ref                  string
+	Language             Language
+	TranslationTitle     string
+	PreserveCantillation bool
 }
 
 type Text struct {
@@ -138,7 +139,7 @@ func (c *Client) FetchText(ctx context.Context, req FetchRequest) (Text, error) 
 	if err != nil {
 		return Text{}, err
 	}
-	text = normalizeText(text, version)
+	text = normalizeText(text, version, req.PreserveCantillation)
 
 	return Text{
 		Ref:               payload.Ref,
@@ -265,9 +266,9 @@ func formatTextValue(raw json.RawMessage) (string, error) {
 	return formatted.text, nil
 }
 
-func normalizeText(text string, version responseVersion) string {
+func normalizeText(text string, version responseVersion, preserveCantillation bool) string {
 	text = html.UnescapeString(text)
-	if version.IsSource && version.LanguageFamilyName == "hebrew" {
+	if version.IsSource && version.LanguageFamilyName == "hebrew" && !preserveCantillation {
 		return stripCantillation(text)
 	}
 
