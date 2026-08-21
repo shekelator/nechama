@@ -12,10 +12,9 @@ permissions:
 
 jobs:
   goreleaser-dry-run:
-    # Build on macOS so the darwin binaries are ad-hoc code-signed (Apple
-    # Silicon kills unsigned arm64 executables). The verify step below fails
-    # the dry-run if a darwin binary is unsigned, catching regressions before
-    # a tagged release.
+    # Build on macOS so GoReleaser's darwin post-build hook can ad-hoc sign the
+    # macOS binaries. The verify step below fails the dry-run if any darwin
+    # binary is unsigned, catching regressions before a tagged release.
     runs-on: macos-latest
     steps:
       - name: Check out code
