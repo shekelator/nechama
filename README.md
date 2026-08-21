@@ -43,13 +43,37 @@ Each release includes archives for:
 - Linux (`amd64`, `arm64`)
 - Windows (`amd64`, `arm64`)
 
-Download the archive for your platform, extract it, and place the `nechama` binary in your `PATH`.
+### Automated install
 
-macOS binaries are ad-hoc code-signed during the release build, so they run on Apple Silicon (unsigned arm64 binaries are killed by the kernel). Gatekeeper may still prompt about an unidentified developer on first launch — right-click the binary and choose **Open**, or clear the quarantine attribute:
+An install script downloads the latest release for your platform, extracts the binary, installs it to `~/.local/bin` (override with `INSTALL_DIR`), and on macOS performs the re-sign + quarantine-clear step described below so the binary runs on Apple Silicon:
 
 ```bash
-xattr -d com.apple.quarantine /path/to/nechama
+curl -fsSL https://raw.githubusercontent.com/shekelator/nechama/main/scripts/install.sh | bash
 ```
+
+To install a specific tag:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/shekelator/nechama/main/scripts/install.sh | NECHAMA_VERSION=v0.4.3 bash
+```
+
+### Manual install
+
+Download the archive for your platform, extract it, and place the `nechama` binary in your `PATH`.
+
+#### macOS note (important)
+
+macOS binaries are ad-hoc code-signed during the release build, so the kernel will run them on Apple Silicon (unsigned `arm64` binaries are killed on launch). The binaries are **not notarized**, however, so on macOS Sequoia (15) and later **Gatekeeper kills a browser-downloaded copy on launch**, and clearing the quarantine attribute alone is no longer enough — you must also re-sign the binary locally so Gatekeeper stops treating it as the downloaded, unnotarized copy:
+
+```bash
+tar -xzf nechama_*_macOS_*.tar.gz
+cd nechama_*_macOS_*/
+codesign --force --sign - ./nechama
+xattr -d com.apple.quarantine ./nechama   # no-op if already removed
+./nechama version
+```
+
+Both steps are required: with only one of them, `./nechama` still prints `zsh: killed`. (`codesign` ships with the Xcode Command Line Tools — run `xcode-select --install` if it is missing.) The only way to avoid this step entirely is to notarize the binary with an Apple Developer ID, which is not currently part of the release process.
 
 ## Usage
 
