@@ -45,6 +45,12 @@ Each release includes archives for:
 
 Download the archive for your platform, extract it, and place the `nechama` binary in your `PATH`.
 
+macOS binaries are ad-hoc code-signed during the release build, so they run on Apple Silicon (unsigned arm64 binaries are killed by the kernel). Gatekeeper may still prompt about an unidentified developer on first launch — right-click the binary and choose **Open**, or clear the quarantine attribute:
+
+```bash
+xattr -d com.apple.quarantine /path/to/nechama
+```
+
 ## Usage
 
 ### Fetch the source-language text

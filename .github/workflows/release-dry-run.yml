@@ -12,7 +12,11 @@ permissions:
 
 jobs:
   goreleaser-dry-run:
-    runs-on: ubuntu-latest
+    # Build on macOS so the darwin binaries are ad-hoc code-signed (Apple
+    # Silicon kills unsigned arm64 executables). The verify step below fails
+    # the dry-run if a darwin binary is unsigned, catching regressions before
+    # a tagged release.
+    runs-on: macos-latest
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -34,3 +38,16 @@ jobs:
           distribution: goreleaser
           version: "~> v2"
           args: release --snapshot --clean --skip=publish
+
+      - name: Verify darwin binaries are code-signed
+        run: |
+          set -e
+          for arch in arm64 amd64; do
+            bin="$(find dist -path "*darwin_${arch}*/nechama" -type f | head -1)"
+            if [ -z "$bin" ]; then
+              echo "darwin/${arch} binary not found in dist/" >&2
+              exit 1
+            fi
+            echo "verifying $bin"
+            codesign --verify --verbose=2 "$bin"
+          done

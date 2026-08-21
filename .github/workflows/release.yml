@@ -10,7 +10,11 @@ permissions:
 
 jobs:
   goreleaser:
-    runs-on: ubuntu-latest
+    # Build on macOS so Go's linker ad-hoc-signs the darwin binaries. Apple
+    # Silicon kills unsigned arm64 executables at exec time, and the binaries
+    # are unsigned when cross-compiled from Linux. The codesign verify step
+    # below gates the publish on a valid signature.
+    runs-on: macos-latest
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -25,6 +29,26 @@ jobs:
 
       - name: Run tests
         run: go test ./...
+
+      - name: Pre-build to verify macOS code signing
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: build --clean --snapshot
+
+      - name: Verify darwin binaries are code-signed
+        run: |
+          set -e
+          for arch in arm64 amd64; do
+            bin="$(find dist -path "*darwin_${arch}*/nechama" -type f | head -1)"
+            if [ -z "$bin" ]; then
+              echo "darwin/${arch} binary not found in dist/" >&2
+              exit 1
+            fi
+            echo "verifying $bin"
+            codesign --verify --verbose=2 "$bin"
+          done
 
       - name: Build and publish release
         uses: goreleaser/goreleaser-action@v6
