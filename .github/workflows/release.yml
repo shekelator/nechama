@@ -10,10 +10,12 @@ permissions:
 
 jobs:
   goreleaser:
-    # Build on macOS so GoReleaser's darwin post-build hook can ad-hoc sign the
-    # macOS binaries before packaging/publish. The codesign verify step below
-    # gates the release on a valid signature for both darwin targets.
-    runs-on: macos-latest
+    # Build on Intel macOS so GoReleaser's darwin post-build hook can ad-hoc
+    # sign both macOS binaries before packaging/publish. The codesign verify
+    # step below gates the release on a valid signature for both darwin
+    # targets, including the darwin/amd64 binary that now fails on
+    # Apple-Silicon-hosted macos-latest runners.
+    runs-on: macos-15-intel
     steps:
       - name: Check out code
         uses: actions/checkout@v4

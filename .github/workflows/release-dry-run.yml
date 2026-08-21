@@ -12,10 +12,11 @@ permissions:
 
 jobs:
   goreleaser-dry-run:
-    # Build on macOS so GoReleaser's darwin post-build hook can ad-hoc sign the
-    # macOS binaries. The verify step below fails the dry-run if any darwin
-    # binary is unsigned, catching regressions before a tagged release.
-    runs-on: macos-latest
+    # Build on Intel macOS so GoReleaser's darwin post-build hook can ad-hoc
+    # sign both macOS binaries. The verify step below fails the dry-run if any
+    # darwin binary is unsigned, catching regressions before a tagged release,
+    # including regressions affecting the darwin/amd64 binary on arm64 hosts.
+    runs-on: macos-15-intel
     steps:
       - name: Check out code
         uses: actions/checkout@v4
