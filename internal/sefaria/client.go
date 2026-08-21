@@ -31,9 +31,10 @@ const (
 )
 
 type FetchRequest struct {
-	Ref              string
-	Language         Language
-	TranslationTitle string
+	Ref                  string
+	Language             Language
+	TranslationTitle     string
+	PreserveCantillation bool
 }
 
 type Text struct {
@@ -138,7 +139,7 @@ func (c *Client) FetchText(ctx context.Context, req FetchRequest) (Text, error) 
 	if err != nil {
 		return Text{}, err
 	}
-	text = normalizeText(text, version)
+	text = normalizeText(text, version, req.PreserveCantillation)
 
 	return Text{
 		Ref:               payload.Ref,
@@ -265,9 +266,9 @@ func formatTextValue(raw json.RawMessage) (string, error) {
 	return formatted.text, nil
 }
 
-func normalizeText(text string, version responseVersion) string {
+func normalizeText(text string, version responseVersion, preserveCantillation bool) string {
 	text = html.UnescapeString(text)
-	if version.IsSource && version.LanguageFamilyName == "hebrew" {
+	if version.IsSource && version.LanguageFamilyName == "hebrew" && !preserveCantillation {
 		return stripCantillation(text)
 	}
 
@@ -275,14 +276,30 @@ func normalizeText(text string, version responseVersion) string {
 }
 
 func stripCantillation(text string) string {
+	runes := []rune(text)
 	var builder strings.Builder
 	builder.Grow(len(text))
 
-	for _, r := range text {
+	var lastWritten rune
+	hasLastWritten := false
+	collapseFollowingInlineSpace := false
+
+	for i, r := range runes {
 		if shouldDropHebrewMark(r) {
+			prevInlineSpace := hasLastWritten && isInlineWhitespace(lastWritten)
+			nextInlineSpace := i+1 < len(runes) && isInlineWhitespace(runes[i+1])
+			if prevInlineSpace && nextInlineSpace {
+				collapseFollowingInlineSpace = true
+			}
 			continue
 		}
+		if collapseFollowingInlineSpace && isInlineWhitespace(r) {
+			continue
+		}
+		collapseFollowingInlineSpace = false
 		builder.WriteRune(r)
+		lastWritten = r
+		hasLastWritten = true
 	}
 
 	return builder.String()
@@ -292,8 +309,15 @@ func shouldDropHebrewMark(r rune) bool {
 	if r == '\u05BD' || r == '\u05C3' {
 		return false
 	}
+	if r == '\u05C0' {
+		return true
+	}
 
 	return unicode.In(r, unicode.Hebrew) && r >= '\u0591' && r <= '\u05AF'
+}
+
+func isInlineWhitespace(r rune) bool {
+	return unicode.IsSpace(r) && r != '\n' && r != '\r'
 }
 
 type flattenedText struct {

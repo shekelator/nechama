@@ -70,6 +70,39 @@ func TestRootCommandFetchesSourceTextByDefault(t *testing.T) {
 	}
 }
 
+func TestRootCommandPreserveCantillationFlag(t *testing.T) {
+	t.Parallel()
+
+	var captured sefaria.FetchRequest
+	stdout := &bytes.Buffer{}
+
+	cmd := newRootCommand(commandDependencies{
+		service: stubTextService{
+			fetch: func(_ context.Context, req sefaria.FetchRequest) (sefaria.Text, error) {
+				captured = req
+				return sefaria.Text{Text: "בְּרֵֽאשִׁית"}, nil
+			},
+			list: func(context.Context, string) ([]sefaria.VersionChoice, error) {
+				t.Fatal("list should not be called")
+				return nil, nil
+			},
+		},
+		stdin:  strings.NewReader(""),
+		stdout: stdout,
+		stderr: &bytes.Buffer{},
+		isTTY:  func() bool { return false },
+	})
+
+	cmd.SetArgs([]string{"-c", "Genesis 1:1"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if !captured.PreserveCantillation {
+		t.Fatal("expected PreserveCantillation to be true")
+	}
+}
+
 func TestRootCommandReadsReferenceFromStdinWhenNoArgument(t *testing.T) {
 	t.Parallel()
 
