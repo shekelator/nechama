@@ -10,10 +10,9 @@ permissions:
 
 jobs:
   goreleaser:
-    # Build on macOS so Go's linker ad-hoc-signs the darwin binaries. Apple
-    # Silicon kills unsigned arm64 executables at exec time, and the binaries
-    # are unsigned when cross-compiled from Linux. The codesign verify step
-    # below gates the publish on a valid signature.
+    # Build on macOS so GoReleaser's darwin post-build hook can ad-hoc sign the
+    # macOS binaries before packaging/publish. The codesign verify step below
+    # gates the release on a valid signature for both darwin targets.
     runs-on: macos-latest
     steps:
       - name: Check out code
