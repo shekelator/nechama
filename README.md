@@ -238,8 +238,9 @@ In a devcontainer, `127.0.0.1` points to the container itself, not your host mac
 ### Environment-only example
 
 ```bash
+# NECHAMA_TRANSLITERATION_BASE_URL should be http://localhost:11434 if running outside of docker
 NECHAMA_TRANSLITERATION_PROVIDER=ollama \
-NECHAMA_TRANSLITERATION_BASE_URL=http://host.docker.internal:11434 \ # Or http://localhost:11434 if running outside of docker
+NECHAMA_TRANSLITERATION_BASE_URL=http://host.docker.internal:11434 \
 NECHAMA_TRANSLITERATION_MODEL=gemma4:e4b \
 NECHAMA_TRANSLITERATION_API_KEY=dummy-api-key \
 NECHAMA_TRANSLITERATION_TIMEOUT_SECONDS=60 \
