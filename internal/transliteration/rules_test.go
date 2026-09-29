@@ -1,0 +1,26 @@
+package transliteration
+
+import (
+	"strings"
+	"testing"
+)
+
+func TestDefaultRulesIncludeSoftKafAndBetGuidance(t *testing.T) {
+	t.Parallel()
+
+	checks := []string{
+		"|כ / ך without dagesh|kh|",
+		"|כִי|khi|",
+		"|אַךְ|akh|",
+		"|בֵיתֶךָ|veitekha|",
+		"|יְהַלְלוּךָ|yehalelukha|",
+		"|סֶלָה|selah|",
+		"For ב/כ/פ, the dagesh determines hard vs. soft regardless of word position.",
+	}
+
+	for _, check := range checks {
+		if !strings.Contains(DefaultRules, check) {
+			t.Fatalf("expected DefaultRules to contain %q", check)
+		}
+	}
+}
