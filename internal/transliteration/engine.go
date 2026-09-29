@@ -78,6 +78,12 @@ func (e *Engine) Transliterate(text string) []Segment {
 				j++
 			}
 			pass := string(runes[i:j])
+			pass = strings.Map(func(r rune) rune {
+				if r == '׃' {
+					return '.'
+				}
+				return r
+			}, pass)
 			segments = append(segments, Segment{Text: pass})
 			for _, r := range pass {
 				if r == '\n' {
@@ -110,19 +116,10 @@ func (e *Engine) transliterateWord(word string, lineStart bool) (string, bool, s
 	reason := ""
 
 	isFirst := true
-	prevClass := "none"   // last vowel class: short|long|kamatz|none
-	prevVowelStr := ""    // last REAL vowel emitted (a|e|i|o|u), for yod-carrier detection
+	prevClass := "none" // last vowel class: short|long|kamatz|none
+	prevVowelStr := ""  // last REAL vowel emitted (a|e|i|o|u), for yod-carrier detection
 
 	i := 0
-	// Optional leading prefix: definite article (הַ → "ha-") or inseparable
-	// prepositions (בְּ/לְ/כְּ/וְ → be-/le-/ke-/ve-).
-	if prefix, ok := detectPrefix(slots); ok && len(slots) > 1 {
-		out.WriteString(prefix)
-		isFirst = true
-		prevClass = "short"
-		prevVowelStr = ""
-		i = 1
-	}
 
 	for i < len(slots) {
 		slot := slots[i]
@@ -178,6 +175,56 @@ func (e *Engine) transliterateWord(word string, lineStart bool) (string, bool, s
 			continue
 		}
 
+		// Medial aleph/ayin should remain visible as a syllable break.
+		if (letter == 'א' || letter == 'ע') && !isFirst && !isLast {
+			out.WriteString("'")
+			if slot.hasShva {
+				str, amb, rsn, class := resolveShva(slot, isFirst, prevClass)
+				out.WriteString(str)
+				ambiguous, reason = mergeAmb(ambiguous, reason, amb, rsn)
+				prevClass, prevVowelStr = class, ""
+			} else {
+				vstr, class := vowelOf(slot.vowel)
+				out.WriteString(vstr)
+				prevClass, prevVowelStr = class, vstr
+			}
+			isFirst = false
+			i++
+			continue
+		}
+
+		// Final guttural with a patach uses furtive-patach ordering.
+		if isLast && slot.vowel == rPatach && letter == 'ח' {
+			out.WriteString("ach")
+			prevClass, prevVowelStr = "short", "a"
+			isFirst = false
+			i++
+			continue
+		}
+
+		if slot.vowel == rQamatzQatan {
+			cons := consonantMap(letter, slot.hasDagesh, slot.hasShinDot, slot.hasSinDot)
+			if !slot.hasDagesh && (letter == 'כ' || letter == 'ך') {
+				cons = "k"
+			}
+			out.WriteString(cons + "o")
+			ambiguous, reason = mergeAmb(ambiguous, reason, true, "qamatz-katan")
+			prevClass, prevVowelStr = "kamatz", "o"
+			isFirst = false
+			i++
+			continue
+		}
+
+		if slot.vowel == rKamatz {
+			emit, amb, rsn, class, vstr := emitKamatz(consString(letter, slot), slots)
+			out.WriteString(emit)
+			ambiguous, reason = mergeAmb(ambiguous, reason, amb, rsn)
+			prevClass, prevVowelStr = class, vstr
+			isFirst = false
+			i++
+			continue
+		}
+
 		cons := consonantMap(letter, slot.hasDagesh, slot.hasShinDot, slot.hasSinDot)
 		emit, amb, rsn, class, vstr := emitConsonant(cons, slot, isFirst, prevClass)
 		out.WriteString(emit)
@@ -193,6 +240,40 @@ func (e *Engine) transliterateWord(word string, lineStart bool) (string, bool, s
 	}
 	e.logger.Debug("engine: word", "hebrew", word, "output", result, "ambiguous", ambiguous, "reason", reason)
 	return result, ambiguous, reason
+}
+
+func consString(letter rune, slot slot) string {
+	return consonantMap(letter, slot.hasDagesh, slot.hasShinDot, slot.hasSinDot)
+}
+
+func emitKamatz(cons string, slots []slot) (string, bool, string, string, string) {
+	if isPossibleQamatzKatan(slots) {
+		return cons + "a", true, "possible qamatz katan", "kamatz", "a"
+	}
+	return cons + "a", false, "", "kamatz", "a"
+}
+
+func isPossibleQamatzKatan(slots []slot) bool {
+	if len(slots) < 2 {
+		return false
+	}
+	for i, slot := range slots {
+		if slot.vowel != rKamatz {
+			continue
+		}
+		if i+1 >= len(slots) {
+			continue
+		}
+		next := slots[i+1]
+		if next.vowel != 0 || next.hasShva {
+			continue
+		}
+		if (next.letter == 'א' || next.letter == 'ע') && i+1 == len(slots)-1 {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 // emitConsonant produces the consonant + its vowel, resolving shva. Returns
@@ -222,7 +303,7 @@ func resolveShva(slot slot, isFirst bool, prevClass string) (string, bool, strin
 }
 
 // mergeAmb keeps the first ambiguity reason for logging.
-func mergeAmb(amb bool, reason, newAmb bool, newReason string) (bool, string) {
+func mergeAmb(amb bool, reason string, newAmb bool, newReason string) (bool, string) {
 	if !amb && newAmb {
 		return true, newReason
 	}
@@ -256,36 +337,6 @@ func nextHasVowel(slots []slot, k int) bool {
 // detectPrefix returns the leading prefix string (with trailing hyphen) and ok
 // when the word starts with a definite article or inseparable preposition
 // that has a following body.
-func detectPrefix(slots []slot) (string, bool) {
-	if len(slots) < 2 {
-		return "", false
-	}
-	s := slots[0]
-	switch s.letter {
-	case 'ה':
-		if s.vowel == rPatach && !s.hasDagesh {
-			return "ha-", true
-		}
-	case 'ב':
-		if s.hasShva {
-			return "be-", true
-		}
-	case 'ל':
-		if s.hasShva {
-			return "le-", true
-		}
-	case 'כ', 'ך':
-		if s.hasShva {
-			return "ke-", true
-		}
-	case 'ו':
-		if s.hasShva {
-			return "ve-", true
-		}
-	}
-	return "", false
-}
-
 // isDivineName reports whether the word is the Tetragrammaton (י-ה-ו-ה) or the
 // double-yod euphemism (יי), with or without nikud.
 func isDivineName(slots []slot) bool {
@@ -305,12 +356,12 @@ func isDivineName(slots []slot) bool {
 // slot is a single Hebrew consonant letter together with its combining marks.
 type slot struct {
 	letter     rune
-	marks       []rune
-	vowel       rune // the vowel nikud (0 if none)
-	hasDagesh   bool
-	hasShva     bool
-	hasShinDot  bool
-	hasSinDot   bool
+	marks      []rune
+	vowel      rune // the vowel nikud (0 if none)
+	hasDagesh  bool
+	hasShva    bool
+	hasShinDot bool
+	hasSinDot  bool
 }
 
 // parseSlots splits a Hebrew word token into letter slots with their attached
@@ -386,6 +437,8 @@ func vowelOf(r rune) (string, string) {
 		return "a", "short"
 	case rKamatz:
 		return "a", "kamatz"
+	case rQamatzQatan:
+		return "o", "kamatz"
 	case rCholam, rCholamHaser:
 		return "o", "long"
 	case rKubutz:
@@ -483,12 +536,13 @@ const (
 	rDagesh      = 0x05BC
 	rShinDot     = 0x05C1
 	rSinDot      = 0x05C2
+	rQamatzQatan = 0x05C7
 )
 
 func isVowelMark(r rune) bool {
 	switch r {
 	case rHatafSegol, rHatafPatach, rHatafKamatz,
-		rChirik, rTsere, rSegol, rPatach, rKamatz,
+		rChirik, rTsere, rSegol, rPatach, rKamatz, rQamatzQatan,
 		rCholam, rCholamHaser, rKubutz:
 		return true
 	}

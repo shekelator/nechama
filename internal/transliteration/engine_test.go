@@ -22,19 +22,23 @@ func TestEngineGoldenExamples(t *testing.T) {
 		{"leading shva + shin", "שְׁמַע", "shema"},
 		{"silent shva closes syllable", "מִדְבָּר", "midbar"},
 		{"dagesh chazak single consonant", "שַׁבָּת", "shabat"},
-		{"definite article", "הַבַּיִת", "ha-bayit"},
+		{"definite article", "הַבַּיִת", "habayit"},
 		{"silent final he + sin dot", "שָׂדֶה", "sade"},
 		{"cholam male", "טוֹב", "tov"},
 		{"bare cholam", "אֹמֶר", "omer"},
 		{"bare cholam + shin", "קֹדֶשׁ", "kodesh"},
 		{"tsere + final tsadi", "עֵץ", "ets"},
-		{"inseparable preposition bet", "בְּיוֹם", "be-yom"},
-		{"vav shva prefix + silent shva", "וְאָהַבְתָּ", "ve-ahavta"},
+		{"inseparable preposition bet", "בְּיוֹם", "beyom"},
+		{"vav shva prefix + silent shva", "וְאָהַבְתָּ", "ve'ahavta"},
 		{"word-initial bet with dagesh", "בָּשָׂר", "basar"},
 		{"word-initial bet without dagesh", "בָא", "va"},
 		{"bet without dagesh after vowel", "אָבִיב", "aviv"},
 		{"word-initial kaf with dagesh", "כָּבוֹד", "kavod"},
 		{"word-initial kaf without dagesh", "כִי", "chi"},
+		{"qamatz katan chok", "חׇק", "chok"},
+		{"qamatz katan kol", "כׇל", "kol"},
+		{"medial ayin syllable break", "מֵעַל", "me'al"},
+		{"furtive patach", "רוּחַ", "ruach"},
 		{"final kaf without dagesh", "אַךְ", "ach"},
 		{"divine name", "יְהוָה", "ADONAI"},
 	}
@@ -48,6 +52,30 @@ func TestEngineGoldenExamples(t *testing.T) {
 				t.Fatalf("hebrew=%q\n got %q\nwant %q", tc.hebrew, got, tc.want)
 			}
 		})
+	}
+}
+
+// TestEngineKamatzAmbiguityFlags verifies that closed-syllable kamatz cases are
+// treated as ambiguous so the LLM can resolve qamatz-katan decisions.
+func TestEngineKamatzAmbiguityFlags(t *testing.T) {
+	t.Parallel()
+
+	eng := NewEngine(nil)
+	for _, he := range []string{"הָר", "בָא"} {
+		_, amb, reason := eng.transliterateWord(he, false)
+		switch he {
+		case "הָר":
+			if !amb {
+				t.Fatalf("hebrew=%q expected ambiguous kamatz, got false", he)
+			}
+			if reason == "" {
+				t.Fatalf("hebrew=%q expected ambiguity reason", he)
+			}
+		case "בָא":
+			if amb {
+				t.Fatalf("hebrew=%q expected non-ambiguous kamatz, got true", he)
+			}
+		}
 	}
 }
 
@@ -120,9 +148,9 @@ func TestEnginePrefixes(t *testing.T) {
 		hebrew string
 		want   string
 	}{
-		{"definite article + dagesh body", "הַכֹּהֵן", "ha-kohen"},
-		{"bet prefix", "בְּיוֹם", "be-yom"},
-		{"kaf prefix", "כְּתִיב", "ke-tiv"},
+		{"definite article + dagesh body", "הַכֹּהֵן", "hakohen"},
+		{"bet prefix", "בְּיוֹם", "beyom"},
+		{"kaf prefix", "כְּתִיב", "ketiv"},
 		{"he+kamatz is not an article", "הָר", "har"},
 	}
 	for _, tc := range cases {

@@ -69,13 +69,13 @@ func (s *HybridService) Transliterate(ctx context.Context, req Request) (string,
 
 	if len(ambiguous) == 0 {
 		s.logger.Debug("hybrid: no ambiguous words; returning engine output")
-		return joinSegments(segments), nil
+		return normalizeTransliterationOutput(joinSegments(segments)), nil
 	}
 
 	if s.provider == nil {
 		s.logger.Debug("hybrid: provider not configured; keeping engine best-guess",
 			"ambiguous", ambiguous)
-		return joinSegments(segments), nil
+		return normalizeTransliterationOutput(joinSegments(segments)), nil
 	}
 
 	replacements, err := s.askLLM(ctx, ambiguous)
@@ -84,7 +84,7 @@ func (s *HybridService) Transliterate(ctx context.Context, req Request) (string,
 		// best-guess transliteration, which is already in the segments.
 		s.logger.Debug("hybrid: LLM consultation failed; keeping engine best-guess",
 			"error", err, "ambiguous", ambiguous)
-		return joinSegments(segments), nil
+		return normalizeTransliterationOutput(joinSegments(segments)), nil
 	}
 
 	for i := range segments {
@@ -109,7 +109,7 @@ func (s *HybridService) Transliterate(ctx context.Context, req Request) (string,
 		seg.Text = repl
 	}
 
-	return joinSegments(segments), nil
+	return normalizeTransliterationOutput(joinSegments(segments)), nil
 }
 
 // askLLM sends the ambiguous Hebrew words to the provider as a JSON list and

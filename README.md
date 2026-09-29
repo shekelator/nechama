@@ -296,7 +296,7 @@ The transliteration module already uses a provider factory pattern in `internal/
 
 In the default **hybrid** mode, `nechama` transliterates pointed Hebrew in two layers:
 
-1. A deterministic engine (`internal/transliteration/engine.go`) walks each Hebrew word slot by slot, applying the consonant and vowel tables, dagesh, final letters, the definite article and inseparable prepositions, cholam/shuruk, the Divine Name, and line-initial capitalization. This handles the mechanical cases exactly and needs no network.
+1. A deterministic engine (`internal/transliteration/engine.go`) walks each Hebrew word slot by slot, applying the consonant and vowel tables, dagesh, final letters, cholam/shuruk, the Divine Name, and line-initial capitalization. This handles the mechanical cases exactly and needs no network.
 2. The engine flags a small number of genuinely ambiguous cases for review — chiefly a shva that is neither word-initial, nor after a long vowel, nor under a dagesh chazak. If an LLM provider is configured, those flagged words (deduplicated) are sent to it in a single prompt asking for a JSON map of `{"<hebrew>": "<transliteration>"}`, and the answers are spliced back. If no provider is configured, or the provider errors or returns unparseable JSON, the engine's best-guess transliteration is used as-is.
 
 Use `--debug` (or `NECHAMA_DEBUG=1`) to see on stderr which words the engine flagged, the exact prompt sent to the LLM, and the response received.

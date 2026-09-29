@@ -15,7 +15,12 @@ func TestDefaultRulesIncludeSoftKafAndBetGuidance(t *testing.T) {
 		"|בֵיתֶךָ|veitekha|",
 		"|יְהַלְלוּךָ|yehalelukha|",
 		"|סֶלָה|selah|",
-		"For ב/כ/פ, the dagesh determines hard vs. soft regardless of word position.",
+		"|מֵעַל|me'al|medial ayin marks a syllable break with an apostrophe|",
+		"|רוּחַ|ruach|furtive patach under final ח is written before the consonant|",
+		"|חוֹל|chol|cholam must keep the o; never drop the vowel|",
+		"Cholam is never dropped",
+		"Medial aleph/ayin",
+		"Use a hyphen only where Hebrew itself uses maqaf",
 	}
 
 	for _, check := range checks {
