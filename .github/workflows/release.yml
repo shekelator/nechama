@@ -10,7 +10,12 @@ permissions:
 
 jobs:
   goreleaser:
-    runs-on: ubuntu-latest
+    # Build on Intel macOS so GoReleaser's darwin post-build hook can ad-hoc
+    # sign both macOS binaries before packaging/publish. The codesign verify
+    # step below gates the release on a valid signature for both darwin
+    # targets, including the darwin/amd64 binary that now fails on
+    # Apple-Silicon-hosted macos-latest runners.
+    runs-on: macos-15-intel
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -25,6 +30,26 @@ jobs:
 
       - name: Run tests
         run: go test ./...
+
+      - name: Pre-build to verify macOS code signing
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: build --clean --snapshot
+
+      - name: Verify darwin binaries are code-signed
+        run: |
+          set -e
+          for arch in arm64 amd64; do
+            bin="$(find dist -path "*darwin_${arch}*/nechama" -type f | head -1)"
+            if [ -z "$bin" ]; then
+              echo "darwin/${arch} binary not found in dist/" >&2
+              exit 1
+            fi
+            echo "verifying $bin"
+            codesign --verify --verbose=2 "$bin"
+          done
 
       - name: Build and publish release
         uses: goreleaser/goreleaser-action@v6

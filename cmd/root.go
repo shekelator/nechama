@@ -27,12 +27,13 @@ type textService interface {
 }
 
 type fetchOptions struct {
-	english           bool
-	translation       string
-	chooseTranslation bool
-	transliteration   bool
-	debug             bool
-	outputPath        string
+	english              bool
+	translation          string
+	chooseTranslation    bool
+	transliteration      bool
+	debug                bool
+	preserveCantillation bool
+	outputPath           string
 }
 
 type transliterator interface {
@@ -200,6 +201,7 @@ func bindFetchFlags(flags *pflag.FlagSet, opts *fetchOptions) {
 	flags.BoolVar(&opts.chooseTranslation, "choose-translation", false, "Interactively choose an English translation")
 	flags.BoolVar(&opts.transliteration, "transliteration", false, "Transliterate source Hebrew/Aramaic text into Latin letters")
 	flags.BoolVar(&opts.debug, "debug", false, "Enable debug logging to stderr (also: NECHAMA_DEBUG)")
+	flags.BoolVarP(&opts.preserveCantillation, "preserve-cantillation", "c", false, "Keep Hebrew cantillation marks in source text output")
 	flags.StringVarP(&opts.outputPath, "output", "o", "", "Write the fetched text to a file instead of stdout")
 }
 
@@ -244,7 +246,7 @@ func runFetch(ctx context.Context, deps commandDependencies, opts fetchOptions, 
 		return runTransliterateText(ctx, deps, opts, ref)
 	}
 
-	request := sefaria.FetchRequest{Ref: ref, Language: sefaria.LanguageSource}
+	request := sefaria.FetchRequest{Ref: ref, Language: sefaria.LanguageSource, PreserveCantillation: opts.preserveCantillation}
 
 	if opts.english || opts.translation != "" || opts.chooseTranslation {
 		request.Language = sefaria.LanguageEnglish

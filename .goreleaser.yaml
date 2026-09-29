@@ -8,6 +8,11 @@ builds:
     binary: nechama
     env:
       - CGO_ENABLED=0
+    hooks:
+      post:
+        - >-
+          sh -c 'if [ "{{ .Os }}" = "darwin" ]; then
+          codesign --force --sign - "{{ .Path }}"; fi'
     goos:
       - linux
       - darwin
