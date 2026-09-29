@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"strings"
 	"unicode"
@@ -30,6 +31,7 @@ type fetchOptions struct {
 	translation          string
 	chooseTranslation    bool
 	transliteration      bool
+	debug                bool
 	preserveCantillation bool
 	outputPath           string
 }
@@ -40,7 +42,7 @@ type transliterator interface {
 
 type commandDependencies struct {
 	service                   textService
-	newTransliterator         func() (transliterator, error)
+	newTransliterator         func(logger *slog.Logger) (transliterator, error)
 	stdin                     io.Reader
 	stdout                    io.Writer
 	stderr                    io.Writer
@@ -54,13 +56,13 @@ func Execute() error {
 }
 
 func defaultDependencies() commandDependencies {
-	newTransliterator := func() (transliterator, error) {
+	newTransliterator := func(logger *slog.Logger) (transliterator, error) {
 		appConfig, err := config.Load()
 		if err != nil {
 			return nil, err
 		}
 
-		provider, err := transliteration.NewProviderFromConfig(transliteration.FactoryConfig{
+		factoryCfg := transliteration.FactoryConfig{
 			Provider: appConfig.TransliterationProvider(),
 			Ollama: transliteration.OllamaFactoryConfig{
 				BaseURL: appConfig.Transliteration.Ollama.BaseURL,
@@ -68,17 +70,23 @@ func defaultDependencies() commandDependencies {
 				APIKey:  appConfig.Transliteration.Ollama.APIKey,
 				Timeout: appConfig.OllamaTimeout(),
 			},
-		})
-		if err != nil {
-			return nil, err
 		}
 
-		service, err := transliteration.NewService(provider, transliteration.DefaultRules)
-		if err != nil {
-			return nil, err
+		switch appConfig.TransliterationMode() {
+		case config.ModeModel:
+			// Model mode sends the whole text to the LLM, so a configured
+			// provider is required.
+			provider, err := transliteration.NewProviderFromConfig(factoryCfg)
+			if err != nil {
+				return nil, err
+			}
+			return transliteration.NewService(provider, transliteration.DefaultRules)
+		default:
+			// Hybrid mode (default): a deterministic engine does the work and
+			// the LLM is consulted only for ambiguous words. The provider is
+			// optional; if unconfigured, the hybrid runs network-free.
+			return transliteration.NewHybridFromConfig(factoryCfg, transliteration.DefaultRules, logger)
 		}
-
-		return service, nil
 	}
 
 	return commandDependencies{
@@ -102,6 +110,28 @@ func defaultDependencies() commandDependencies {
 
 func isTerminal(file *os.File) bool {
 	return term.IsTerminal(int(file.Fd()))
+}
+
+// debugEnabled reports whether debug logging should be active. The --debug
+// flag wins; otherwise NECHAMA_DEBUG is consulted (accepts 1/true/yes/on).
+func debugEnabled(flag bool) bool {
+	if flag {
+		return true
+	}
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("NECHAMA_DEBUG"))) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
+}
+
+// newLogger returns a debug-level text logger writing to w, or nil when debug
+// is disabled (the transliteration services treat nil as a no-op logger).
+func newLogger(debug bool, w io.Writer) *slog.Logger {
+	if !debug {
+		return nil
+	}
+	return slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: slog.LevelDebug}))
 }
 
 func newRootCommand(deps commandDependencies) *cobra.Command {
@@ -170,6 +200,7 @@ func bindFetchFlags(flags *pflag.FlagSet, opts *fetchOptions) {
 	flags.StringVarP(&opts.translation, "translation", "t", "", "Fetch a specific English translation by short or full title")
 	flags.BoolVar(&opts.chooseTranslation, "choose-translation", false, "Interactively choose an English translation")
 	flags.BoolVar(&opts.transliteration, "transliteration", false, "Transliterate source Hebrew/Aramaic text into Latin letters")
+	flags.BoolVar(&opts.debug, "debug", false, "Enable debug logging to stderr (also: NECHAMA_DEBUG)")
 	flags.BoolVarP(&opts.preserveCantillation, "preserve-cantillation", "c", false, "Keep Hebrew cantillation marks in source text output")
 	flags.StringVarP(&opts.outputPath, "output", "o", "", "Write the fetched text to a file instead of stdout")
 }
@@ -278,7 +309,7 @@ func runFetch(ctx context.Context, deps commandDependencies, opts fetchOptions, 
 			return errors.New("transliteration service is not configured")
 		}
 
-		service, err := deps.newTransliterator()
+		service, err := deps.newTransliterator(newLogger(debugEnabled(opts.debug), deps.stderr))
 		if err != nil {
 			return err
 		}
@@ -311,7 +342,7 @@ func runTransliterateText(ctx context.Context, deps commandDependencies, opts fe
 
 	fmt.Fprintf(deps.stderr, "%s (transliterate)\n", previewText(text, 40))
 
-	service, err := deps.newTransliterator()
+	service, err := deps.newTransliterator(newLogger(debugEnabled(opts.debug), deps.stderr))
 	if err != nil {
 		return err
 	}

@@ -13,12 +13,24 @@ import (
 
 const defaultConfigFileName = "config.json"
 
+// Transliteration modes.
+const (
+	// ModeHybrid uses a deterministic engine for the bulk of the work and
+	// consults the configured LLM provider only for words the engine flags as
+	// ambiguous. The provider is optional in this mode.
+	ModeHybrid = "hybrid"
+	// ModeModel sends the entire text to the LLM provider, which must be
+	// configured.
+	ModeModel = "model"
+)
+
 const (
 	envTransliterationProvider = "NECHAMA_TRANSLITERATION_PROVIDER"
-	envTransliterationBaseURL  = "NECHAMA_TRANSLITERATION_BASE_URL"
-	envTransliterationModel    = "NECHAMA_TRANSLITERATION_MODEL"
-	envTransliterationAPIKey   = "NECHAMA_TRANSLITERATION_API_KEY"
-	envTransliterationTimeout  = "NECHAMA_TRANSLITERATION_TIMEOUT_SECONDS"
+	envTransliterationBaseURL   = "NECHAMA_TRANSLITERATION_BASE_URL"
+	envTransliterationModel     = "NECHAMA_TRANSLITERATION_MODEL"
+	envTransliterationAPIKey    = "NECHAMA_TRANSLITERATION_API_KEY"
+	envTransliterationTimeout   = "NECHAMA_TRANSLITERATION_TIMEOUT_SECONDS"
+	envTransliterationMode      = "NECHAMA_TRANSLITERATION_MODE"
 )
 
 type AppConfig struct {
@@ -27,6 +39,7 @@ type AppConfig struct {
 
 type TransliterationConfig struct {
 	Provider string       `json:"provider"`
+	Mode     string       `json:"mode"`
 	Ollama   OllamaConfig `json:"ollama"`
 }
 
@@ -41,6 +54,7 @@ func Default() AppConfig {
 	return AppConfig{
 		Transliteration: TransliterationConfig{
 			Provider: "ollama",
+			Mode:     ModeHybrid,
 			Ollama: OllamaConfig{
 				BaseURL:        "http://host.docker.internal:11434",
 				Model:          "gemma4:cloud",
@@ -96,14 +110,26 @@ func (c AppConfig) Validate() error {
 		return fmt.Errorf("unsupported transliteration provider %q", c.Transliteration.Provider)
 	}
 
-	if strings.TrimSpace(c.Transliteration.Ollama.BaseURL) == "" {
-		return errors.New("transliteration.ollama.base_url is required")
+	mode := c.TransliterationMode()
+	switch mode {
+	case ModeHybrid, ModeModel:
+	default:
+		return fmt.Errorf("unsupported transliteration mode %q (want %q or %q)", c.Transliteration.Mode, ModeHybrid, ModeModel)
 	}
-	if strings.TrimSpace(c.Transliteration.Ollama.Model) == "" {
-		return errors.New("transliteration.ollama.model is required")
-	}
-	if c.Transliteration.Ollama.TimeoutSeconds <= 0 {
-		return errors.New("transliteration.ollama.timeout_seconds must be greater than zero")
+
+	// The LLM provider is only required in model mode. In hybrid mode the
+	// deterministic engine does the work and the provider is optional (used
+	// only for the few words the engine flags as ambiguous).
+	if mode == ModeModel {
+		if strings.TrimSpace(c.Transliteration.Ollama.BaseURL) == "" {
+			return errors.New("transliteration.ollama.base_url is required for model mode")
+		}
+		if strings.TrimSpace(c.Transliteration.Ollama.Model) == "" {
+			return errors.New("transliteration.ollama.model is required for model mode")
+		}
+		if c.Transliteration.Ollama.TimeoutSeconds <= 0 {
+			return errors.New("transliteration.ollama.timeout_seconds must be greater than zero")
+		}
 	}
 
 	return nil
@@ -115,6 +141,16 @@ func (c AppConfig) TransliterationProvider() string {
 		return "ollama"
 	}
 	return provider
+}
+
+// TransliterationMode returns the configured transliteration mode, defaulting
+// to hybrid when unset.
+func (c AppConfig) TransliterationMode() string {
+	mode := strings.ToLower(strings.TrimSpace(c.Transliteration.Mode))
+	if mode == "" {
+		return ModeHybrid
+	}
+	return mode
 }
 
 func (c AppConfig) OllamaTimeout() time.Duration {
@@ -145,6 +181,9 @@ func applyEnvOverrides(config *AppConfig) {
 
 	if value := strings.TrimSpace(os.Getenv(envTransliterationProvider)); value != "" {
 		config.Transliteration.Provider = value
+	}
+	if value := strings.TrimSpace(os.Getenv(envTransliterationMode)); value != "" {
+		config.Transliteration.Mode = value
 	}
 	if value := strings.TrimSpace(os.Getenv(envTransliterationBaseURL)); value != "" {
 		config.Transliteration.Ollama.BaseURL = value
