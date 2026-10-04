@@ -82,3 +82,25 @@ func TestServiceTransliterateRejectsEmptyOutput(t *testing.T) {
 		t.Fatalf("expected ErrEmptyOutput, got %v", err)
 	}
 }
+
+func TestServiceTransliterateNormalizesDashesAndApostrophes(t *testing.T) {
+	t.Parallel()
+
+	service, err := NewService(fakeProvider{
+		generate: func(context.Context, string, string) (string, error) {
+			return "chl־malakhav — me‘al׃", nil
+		},
+	}, DefaultRules)
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+
+	got, err := service.Transliterate(context.Background(), Request{Text: "שלום"})
+	if err != nil {
+		t.Fatalf("Transliterate() error = %v", err)
+	}
+
+	if got != "chl-malakhav - me'al." {
+		t.Fatalf("unexpected normalized transliteration: %q", got)
+	}
+}

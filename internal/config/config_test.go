@@ -56,6 +56,59 @@ func TestValidateRejectsUnknownProvider(t *testing.T) {
 	}
 }
 
+func TestDefaultModeIsHybrid(t *testing.T) {
+	cfg := Default()
+	if got, want := cfg.TransliterationMode(), ModeHybrid; got != want {
+		t.Fatalf("default mode: got %q want %q", got, want)
+	}
+}
+
+func TestModeEnvOverride(t *testing.T) {
+	t.Setenv("NECHAMA_CONFIG", filepath.Join(t.TempDir(), "missing.json"))
+	t.Setenv("NECHAMA_TRANSLITERATION_MODE", "model")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got, want := cfg.TransliterationMode(), ModeModel; got != want {
+		t.Fatalf("mode from env: got %q want %q", got, want)
+	}
+}
+
+func TestValidateRejectsUnknownMode(t *testing.T) {
+	cfg := Default()
+	cfg.Transliteration.Mode = "magic"
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error for unknown mode")
+	}
+}
+
+func TestHybridModeDoesNotRequireOllama(t *testing.T) {
+	cfg := Default()
+	cfg.Transliteration.Mode = ModeHybrid
+	cfg.Transliteration.Ollama.BaseURL = ""
+	cfg.Transliteration.Ollama.Model = ""
+	cfg.Transliteration.Ollama.TimeoutSeconds = 0
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("hybrid mode should not require ollama config: %v", err)
+	}
+}
+
+func TestModelModeRequiresOllama(t *testing.T) {
+	cfg := Default()
+	cfg.Transliteration.Mode = ModeModel
+	cfg.Transliteration.Ollama.BaseURL = ""
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("model mode should require base_url")
+	}
+	cfg.Transliteration.Ollama.BaseURL = "http://localhost:11434"
+	cfg.Transliteration.Ollama.Model = ""
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("model mode should require model")
+	}
+}
+
 func TestLoadAppliesEnvironmentOverrides(t *testing.T) {
 	t.Setenv("NECHAMA_CONFIG", filepath.Join(t.TempDir(), "missing.json"))
 	t.Setenv("NECHAMA_TRANSLITERATION_PROVIDER", "ollama")
