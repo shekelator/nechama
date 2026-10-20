@@ -34,12 +34,12 @@ func TestEngineGoldenExamples(t *testing.T) {
 		{"word-initial bet without dagesh", "בָא", "va"},
 		{"bet without dagesh after vowel", "אָבִיב", "aviv"},
 		{"word-initial kaf with dagesh", "כָּבוֹד", "kavod"},
-		{"word-initial kaf without dagesh", "כִי", "chi"},
+		{"word-initial kaf without dagesh", "כִי", "khi"},
 		{"qamatz katan chok", "חׇק", "chok"},
-		{"qamatz katan kol", "כׇל", "kol"},
+		{"qamatz katan khol", "כׇל", "khol"},
 		{"medial ayin syllable break", "מֵעַל", "me'al"},
 		{"furtive patach", "רוּחַ", "ruach"},
-		{"final kaf without dagesh", "אַךְ", "ach"},
+		{"final kaf without dagesh", "אַךְ", "akh"},
 		{"divine name", "יְהוָה", "ADONAI"},
 	}
 
@@ -86,10 +86,10 @@ func TestEngineTransliterateSegments(t *testing.T) {
 
 	eng := NewEngine(nil)
 
-	// "Shalom alechem" — first word capitalized, second not.
+	// "Shalom alekhem" — first word capitalized, second not.
 	segs := eng.Transliterate("שָׁלוֹם עָלֵיכֶם")
-	if got := joinText(segs); got != "Shalom alechem" {
-		t.Fatalf("joined: got %q want %q", got, "Shalom alechem")
+	if got := joinText(segs); got != "Shalom alekhem" {
+		t.Fatalf("joined: got %q want %q", got, "Shalom alekhem")
 	}
 	// First segment is the capitalized word; second is " "; third is the word.
 	if !segs[0].LineStart {

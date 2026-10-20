@@ -11,6 +11,7 @@ func TestDefaultRulesIncludeSoftKafAndBetGuidance(t *testing.T) {
 	checks := []string{
 		"|כ / ך without dagesh|kh|",
 		"|כִי|khi|",
+		"|כׇל|khol|",
 		"|אַךְ|akh|",
 		"|בֵיתֶךָ|veitekha|",
 		"|יְהַלְלוּךָ|yehalelukha|",
@@ -20,6 +21,8 @@ func TestDefaultRulesIncludeSoftKafAndBetGuidance(t *testing.T) {
 		"|חוֹל|chol|cholam must keep the o; never drop the vowel|",
 		"Cholam is never dropped",
 		"Medial aleph/ayin",
+		"Kaf/khaf invariant",
+		"Never use ch for כ/ך",
 		"Use a hyphen only where Hebrew itself uses maqaf",
 	}
 

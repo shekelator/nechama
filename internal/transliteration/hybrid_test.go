@@ -285,7 +285,7 @@ func TestParseTransliterationMap(t *testing.T) {
 func TestHybridPsalm148SampleWords(t *testing.T) {
 	t.Parallel()
 
-	stub := &stubProvider{resp: `{"חׇק":"chok","כׇל":"kol","מֵעַל":"me'al"}`}
+	stub := &stubProvider{resp: `{"חׇק":"chok","כׇל":"khol","מֵעַל":"me'al"}`}
 	svc, err := NewHybridService(stub, DefaultRules, nil)
 	if err != nil {
 		t.Fatalf("NewHybridService() error = %v", err)
@@ -299,8 +299,8 @@ func TestHybridPsalm148SampleWords(t *testing.T) {
 	if !strings.Contains(out, "Chok-natan") {
 		t.Fatalf("expected Chok-natan in output, got %q", out)
 	}
-	if !strings.Contains(out, "kol-") {
-		t.Fatalf("expected kol- in output, got %q", out)
+	if !strings.Contains(out, "khol-") {
+		t.Fatalf("expected khol- in output, got %q", out)
 	}
 	if !strings.Contains(out, "me'al") {
 		t.Fatalf("expected me'al in output, got %q", out)

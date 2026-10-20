@@ -204,9 +204,6 @@ func (e *Engine) transliterateWord(word string, lineStart bool) (string, bool, s
 
 		if slot.vowel == rQamatzQatan {
 			cons := consonantMap(letter, slot.hasDagesh, slot.hasShinDot, slot.hasSinDot)
-			if !slot.hasDagesh && (letter == 'כ' || letter == 'ך') {
-				cons = "k"
-			}
 			out.WriteString(cons + "o")
 			ambiguous, reason = mergeAmb(ambiguous, reason, true, "qamatz-katan")
 			prevClass, prevVowelStr = "kamatz", "o"
@@ -480,7 +477,7 @@ func consonantMap(letter rune, hasDagesh, hasShinDot, hasSinDot bool) string {
 		if hasDagesh {
 			return "k"
 		}
-		return "ch"
+		return "kh"
 	case 'ל':
 		return "l"
 	case 'מ', 'ם':

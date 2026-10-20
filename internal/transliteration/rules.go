@@ -70,6 +70,7 @@ Transliterate pointed Hebrew text (with nikud) into English characters following
 12. **Cholam is never dropped**: The vowel o must be preserved wherever cholam appears. Do not reduce words like חוֹל to chl; output chol or khol (depending on house style), but never omit the o.
 13. **Medial aleph/ayin**: When א or ע marks a syllable break inside a word, represent it with an apostrophe so the break remains visible in English. Prefer plain ASCII apostrophe for this project: מֵעַל → me'al. If you want academic-style notation, ayin may also be shown as ‘ or ʿ, but plain apostrophe is acceptable.
 14. **Furtive patach**: When a word ends in ח with a patach, pronounce the vowel before the final consonant in transliteration: רוּחַ → ruach.
+15. **Kaf/khaf invariant**: Hard כּ (kaf with dagesh) must always be transliterated as k. Soft כ/ך (khaf, without dagesh) must always be transliterated as kh. Never use ch for כ/ך.
 
 **Examples** — apply the rules exactly as shown, with the exception that proper nouns may be transliterated according to common usage, and capitalization is appropriate at the first letter of line or verse.
 
@@ -97,7 +98,8 @@ Transliterate pointed Hebrew text (with nikud) into English characters following
 |אָבִיב|aviv|beit without dagesh after a vowel → v|
 |כָּבוֹד|kavod|word-initial kaf WITH dagesh → k (hard)|
 |כִי|khi|word-initial kaf WITHOUT dagesh → kh (soft)|
-|אַךְ|akh|final kaf without dagesh → kh|
+|כׇל|khol|qamatz katan under soft khaf still uses kh|
+|אַךְ|akh|final khaf without dagesh → kh|
 |יְהוָה|ADONAI|Divine Name → ADONAI|
 
 Always use the rules above consistently when transliterating Hebrew text into English characters.

@@ -27,6 +27,14 @@ It defaults to the source language of the work, which means Hebrew for Tanakh an
 go build -o nechama .
 ```
 
+If you build inside a Linux devcontainer and want to run the binary on an Apple Silicon Mac, cross-compile for macOS arm64:
+
+```bash
+CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o nechama-macos-arm64 .
+```
+
+Then run that output on your Mac. A Linux build from the container will not run on macOS and typically fails with an exec format error.
+
 Or run it directly:
 
 ```bash
